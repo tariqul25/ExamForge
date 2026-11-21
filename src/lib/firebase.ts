@@ -1,5 +1,14 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, Auth, signInWithPopup, UserCredential } from 'firebase/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  Auth,
+  signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+  UserCredential,
+} from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
@@ -32,4 +41,11 @@ if (typeof window !== 'undefined' && isFirebaseConfigured) {
   }
 }
 
-export { auth, googleProvider, signInWithPopup };
+export {
+  auth,
+  googleProvider,
+  signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+};

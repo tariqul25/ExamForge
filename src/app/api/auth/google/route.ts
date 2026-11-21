@@ -5,6 +5,14 @@ import { memoryStore } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
+const COOKIE_OPTIONS = {
+  path: '/',
+  maxAge: 60 * 60 * 24 * 30, // 30 days
+  sameSite: 'lax' as const,
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -19,7 +27,8 @@ export async function POST(req: NextRequest) {
 
     const cleanEmail = email.toLowerCase().trim();
     const displayName = name ? name.trim() : cleanEmail.split('@')[0];
-    const role = cleanEmail.includes('admin@') || cleanEmail.endsWith('admin@preplens.com') ? 'admin' : 'user';
+    const configuredAdmin = (process.env.ADMIN_EMAIL || 'admin@examforge.com').toLowerCase().trim();
+    const role = cleanEmail === configuredAdmin ? 'admin' : 'user';
 
     const db = await connectToDatabase();
     if (db) {
@@ -54,11 +63,7 @@ export async function POST(req: NextRequest) {
         };
 
         const res = NextResponse.json({ success: true, user: userData });
-        res.cookies.set('preplens_user', JSON.stringify(userData), {
-          path: '/',
-          maxAge: 60 * 60 * 24 * 30, // 30 days
-          sameSite: 'lax',
-        });
+        res.cookies.set('examforge_user', JSON.stringify(userData), COOKIE_OPTIONS);
         return res;
       } catch (err: any) {
         console.warn('MongoDB Google login error, falling back to memoryStore:', err.message);
@@ -87,11 +92,7 @@ export async function POST(req: NextRequest) {
     };
 
     const res = NextResponse.json({ success: true, user: userData });
-    res.cookies.set('preplens_user', JSON.stringify(userData), {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30,
-      sameSite: 'lax',
-    });
+    res.cookies.set('examforge_user', JSON.stringify(userData), COOKIE_OPTIONS);
     return res;
   } catch (error: any) {
     console.error('Google Auth Route Error:', error);

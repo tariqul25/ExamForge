@@ -15,10 +15,11 @@ export interface UserRecord {
 }
 
 export function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password + '_preplens_salt_2026').digest('hex');
+  const salt = process.env.AUTH_SECRET || '_examforge_salt_2026';
+  return crypto.createHash('sha256').update(password + salt).digest('hex');
 }
 
-// In-memory fallback and seed storage for PrepLens
+// In-memory fallback and seed storage for ExamForge
 class MemoryStore {
   users: Map<string, UserRecord> = new Map();
   exams: Map<string, ExamSessionData> = new Map();
@@ -30,12 +31,15 @@ class MemoryStore {
   }
 
   seedInitialData() {
+    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@examforge.com').toLowerCase().trim();
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+
     // Seed Admin & Default user
     const adminUser: UserRecord = {
       id: 'user_admin_01',
       name: 'System Admin',
-      email: 'admin@preplens.com',
-      passwordHash: hashPassword('admin123'),
+      email: adminEmail,
+      passwordHash: hashPassword(adminPassword),
       role: 'admin',
       avatar: undefined,
       targetExam: 'Platform Management',
@@ -43,17 +47,19 @@ class MemoryStore {
     };
     this.users.set(adminUser.id, adminUser);
 
-    const sampleUser: UserRecord = {
-      id: 'user_sample_01',
-      name: 'Tanvir Hossain',
-      email: 'learner@preplens.com',
-      passwordHash: hashPassword('password123'),
-      role: 'user',
-      avatar: undefined,
-      targetExam: '47th BCS & Bangladesh Bank AD',
-      createdAt: new Date().toISOString(),
-    };
-    this.users.set(sampleUser.id, sampleUser);
+    if (process.env.NODE_ENV !== 'production') {
+      const sampleUser: UserRecord = {
+        id: 'user_sample_01',
+        name: 'Tanvir Hossain',
+        email: 'learner@examforge.com',
+        passwordHash: hashPassword('password123'),
+        role: 'user',
+        avatar: undefined,
+        targetExam: '47th BCS & Bangladesh Bank AD',
+        createdAt: new Date().toISOString(),
+      };
+      this.users.set(sampleUser.id, sampleUser);
+    }
     // 1. Math Exam (Algebra & Arithmetic with LaTeX math)
     const mathExamId = 'exam_sample_math_01';
     this.exams.set(mathExamId, {

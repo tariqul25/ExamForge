@@ -20,7 +20,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import PrepLensLogo from '@/components/PrepLensLogo';
+import ExamForgeLogo from '@/components/ExamForgeLogo';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -36,7 +36,7 @@ export default function Navbar() {
   });
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('preplens-theme');
+    const savedTheme = localStorage.getItem('examforge-theme');
     if (savedTheme === 'light') {
       setIsDark(false);
       document.documentElement.classList.remove('dark');
@@ -59,11 +59,11 @@ export default function Navbar() {
   const toggleTheme = () => {
     if (isDark) {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('preplens-theme', 'light');
+      localStorage.setItem('examforge-theme', 'light');
       setIsDark(false);
     } else {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('preplens-theme', 'dark');
+      localStorage.setItem('examforge-theme', 'dark');
       setIsDark(true);
     }
   };
@@ -82,7 +82,7 @@ export default function Navbar() {
           {/* Logo */}
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2.5 group">
-              <PrepLensLogo size={36} />
+              <ExamForgeLogo size={36} />
             </Link>
           </div>
 

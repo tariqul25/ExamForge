@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import PrepLensLogo from '@/components/PrepLensLogo';
+import ExamForgeLogo from '@/components/ExamForgeLogo';
 
 export default function Footer() {
   const subjects = [
@@ -16,7 +16,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <PrepLensLogo size={28} showText={true} />
+            <ExamForgeLogo size={28} showText={true} />
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-2 text-xs">

@@ -8,8 +8,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   RefreshCw,
-  Download,
-  Upload,
   Trash2,
   ExternalLink,
   Moon,
@@ -27,7 +25,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import PrepLensLogo from '@/components/PrepLensLogo';
+import ExamForgeLogo from '@/components/ExamForgeLogo';
 
 export default function SettingsPage() {
   const { user, openAuthModal, logout } = useAuth();
@@ -36,18 +34,12 @@ export default function SettingsPage() {
   const [isDark, setIsDark] = useState(true);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Admin access unlock state
-  const [adminPasscode, setAdminPasscode] = useState('');
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
-  const [adminPasscodeError, setAdminPasscodeError] = useState<string | null>(null);
-
-  // Backup / restore status message
+  // Reset status message
   const [backupMsg, setBackupMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
   );
-  const importInputRef = useRef<HTMLInputElement>(null);
 
-  const isUserAdmin = user?.role === 'admin' || isAdminUnlocked;
+  const isUserAdmin = user?.role === 'admin';
 
   const fetchHealth = async () => {
     try {
@@ -64,18 +56,18 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchHealth();
-    const savedTheme = localStorage.getItem('preplens-theme');
+    const savedTheme = localStorage.getItem('examforge-theme');
     setIsDark(savedTheme !== 'light');
   }, []);
 
   const toggleTheme = () => {
     if (isDark) {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('preplens-theme', 'light');
+      localStorage.setItem('examforge-theme', 'light');
       setIsDark(false);
     } else {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('preplens-theme', 'dark');
+      localStorage.setItem('examforge-theme', 'dark');
       setIsDark(true);
     }
   };
@@ -86,68 +78,9 @@ export default function SettingsPage() {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  // Unlock admin section with passcode
-  const handleUnlockAdmin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (adminPasscode.trim() === 'admin123' || adminPasscode.trim() === 'admin') {
-      setIsAdminUnlocked(true);
-      setAdminPasscodeError(null);
-    } else {
-      setAdminPasscodeError('Invalid admin passcode. (Hint: default is admin123 or sign in as admin@preplens.com)');
-    }
-  };
 
-  // Export JSON backup
-  const handleExportBackup = async () => {
-    try {
-      const res = await fetch('/api/backup');
-      const data = await res.json();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `preplens-backup-${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setBackupMsg({ type: 'success', text: 'Backup downloaded successfully!' });
-    } catch (e: any) {
-      setBackupMsg({ type: 'error', text: 'Export failed: ' + e.message });
-    }
-  };
 
-  // Import JSON backup
-  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const rawJson = event.target?.result as string;
-        const parsed = JSON.parse(rawJson);
-
-        const res = await fetch('/api/backup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(parsed),
-        });
-
-        const data = await res.json();
-        if (res.ok && data.success) {
-          setBackupMsg({
-            type: 'success',
-            text: `Backup restored! (${data.counts.exams} exams, ${data.counts.written} written, ${data.counts.revision} revision items)`,
-          });
-          fetchHealth();
-        } else {
-          throw new Error(data.error || 'Failed to restore');
-        }
-      } catch (err: any) {
-        setBackupMsg({ type: 'error', text: 'Invalid JSON backup: ' + err.message });
-      }
-    };
-    reader.readAsText(file);
-  };
 
   // Reset to initial sample data
   const handleResetData = async () => {
@@ -288,14 +221,14 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Data Backup & Export (Available for Users) */}
+      {/* Study Records Management */}
       <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-200 dark:border-gray-800 shadow-xs space-y-4">
         <h3 className="font-bold text-sm sm:text-base text-gray-900 dark:text-white flex items-center gap-2">
-          <Download className="w-5 h-5 text-indigo-500" />
-          <span>Data Backup & Export</span>
+          <Trash2 className="w-5 h-5 text-red-500" />
+          <span>Study Records Management</span>
         </h3>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Export your study sessions, exams, and revision items as a JSON backup or restore past progress.
+          Reset all stored practice exams, written sessions, and revision items back to initial state.
         </p>
 
         {backupMsg && (
@@ -311,36 +244,13 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={handleExportBackup}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            <span>Download Backup JSON</span>
-          </button>
-
-          <button
-            onClick={() => importInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs font-semibold transition-colors"
-          >
-            <Upload className="w-4 h-4" />
-            <span>Restore from Backup</span>
-          </button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".json,application/json"
-            className="hidden"
-            onChange={handleImportBackup}
-          />
-
+        <div className="flex items-center">
           <button
             onClick={handleResetData}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-red-200 dark:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-semibold transition-colors ml-auto"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-semibold transition-colors"
           >
             <Trash2 className="w-4 h-4" />
-            <span>Reset Data</span>
+            <span>Reset All Study Records</span>
           </button>
         </div>
       </div>
@@ -451,7 +361,7 @@ export default function SettingsPage() {
                   </a>
                 </div>
                 <pre className="p-2 rounded-lg bg-gray-900 text-gray-100 font-mono text-[11px] overflow-x-auto">
-                  MONGODB_URI=&quot;mongodb+srv://&lt;username&gt;:&lt;password&gt;@cluster0.xxxxx.mongodb.net/preplens?retryWrites=true&amp;w=majority&quot;
+                  MONGODB_URI=&quot;mongodb+srv://&lt;username&gt;:&lt;password&gt;@cluster0.xxxxx.mongodb.net/examforge?retryWrites=true&amp;w=majority&quot;
                 </pre>
               </div>
             </div>

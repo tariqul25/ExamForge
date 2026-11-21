@@ -5,6 +5,14 @@ import { memoryStore, hashPassword } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
+const COOKIE_OPTIONS = {
+  path: '/',
+  maxAge: 60 * 60 * 24 * 30, // 30 days
+  sameSite: 'lax' as const,
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -42,11 +50,7 @@ export async function POST(req: NextRequest) {
           };
 
           const res = NextResponse.json({ success: true, user: userData });
-          res.cookies.set('preplens_user', JSON.stringify(userData), {
-            path: '/',
-            maxAge: 60 * 60 * 24 * 30,
-            sameSite: 'lax',
-          });
+          res.cookies.set('examforge_user', JSON.stringify(userData), COOKIE_OPTIONS);
           return res;
         }
       } catch (err: any) {
@@ -56,16 +60,9 @@ export async function POST(req: NextRequest) {
 
     // In-memory store fallback
     const localUser = memoryStore.getUserByEmail(cleanEmail);
-    if (!localUser) {
+    if (!localUser || localUser.passwordHash !== pwdHash) {
       return NextResponse.json(
-        { success: false, error: 'No user found with this email address.' },
-        { status: 404 }
-      );
-    }
-
-    if (localUser.passwordHash !== pwdHash) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid password. Please try again.' },
+        { success: false, error: 'Invalid email or password. Please try again.' },
         { status: 401 }
       );
     }
@@ -80,11 +77,7 @@ export async function POST(req: NextRequest) {
     };
 
     const res = NextResponse.json({ success: true, user: userData });
-    res.cookies.set('preplens_user', JSON.stringify(userData), {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30,
-      sameSite: 'lax',
-    });
+    res.cookies.set('examforge_user', JSON.stringify(userData), COOKIE_OPTIONS);
     return res;
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

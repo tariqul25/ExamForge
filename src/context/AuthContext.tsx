@@ -2,7 +2,15 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile } from '@/types';
-import { auth, googleProvider, signInWithPopup, isFirebaseConfigured } from '@/lib/firebase';
+import {
+  auth,
+  googleProvider,
+  signInWithPopup,
+  isFirebaseConfigured,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+} from '@/lib/firebase';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -37,9 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(data.user);
         } else {
           // Check if first-time visitor to show welcoming sign-in popup
-          const hasSeenWelcome = sessionStorage.getItem('preplens_welcome_shown');
+          const hasSeenWelcome = sessionStorage.getItem('examforge_welcome_shown');
           if (!hasSeenWelcome) {
-            sessionStorage.setItem('preplens_welcome_shown', 'true');
+            sessionStorage.setItem('examforge_welcome_shown', 'true');
             setAuthModalTab('signin');
             setAuthPromptReason('Sign in with Google or create an account to unlock all features!');
             setIsAuthModalOpen(true);
@@ -63,6 +71,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
+      // If Firebase is configured, authenticate via Firebase
+      if (typeof window !== 'undefined' && isFirebaseConfigured && auth) {
+        try {
+          await signInWithEmailAndPassword(auth, email.trim(), password);
+        } catch (fbErr: any) {
+          console.warn('Firebase signIn notice:', fbErr.code, fbErr.message);
+          // If user exists in server DB but not in Firebase yet, let server authenticate or handle
+          if (fbErr.code === 'auth/wrong-password' || fbErr.code === 'auth/invalid-credential') {
+            return { success: false, error: 'Incorrect email or password.' };
+          }
+          if (fbErr.code === 'auth/user-disabled') {
+            return { success: false, error: 'This account has been disabled in Firebase.' };
+          }
+        }
+      }
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -82,6 +106,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = async (name: string, email: string, password: string, targetExam?: string) => {
     try {
+      // 1. If Firebase is configured, register user in Firebase Authentication!
+      if (typeof window !== 'undefined' && isFirebaseConfigured && auth) {
+        try {
+          const userCred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+          if (userCred.user && name.trim()) {
+            await updateProfile(userCred.user, { displayName: name.trim() });
+          }
+        } catch (fbErr: any) {
+          console.warn('Firebase registration notice:', fbErr.code, fbErr.message);
+          if (fbErr.code === 'auth/email-already-in-use') {
+            return {
+              success: false,
+              error: 'An account with this email already exists in Firebase. Please sign in instead.',
+            };
+          }
+          if (fbErr.code === 'auth/weak-password') {
+            return {
+              success: false,
+              error: 'Password should be at least 6 characters long.',
+            };
+          }
+          if (fbErr.code === 'auth/invalid-email') {
+            return {
+              success: false,
+              error: 'Please enter a valid email address.',
+            };
+          }
+        }
+      }
+
+      // 2. Save user to server session & database (MongoDB/memoryStore)
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

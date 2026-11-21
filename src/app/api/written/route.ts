@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export async function GET(req: NextRequest) {
   try {
     let userId: string | undefined = undefined;
-    const userCookie = req.cookies.get('preplens_user');
+    const userCookie = req.cookies.get('examforge_user');
     if (userCookie?.value) {
       try {
         const parsed = JSON.parse(userCookie.value);
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     let userId: string | undefined = undefined;
-    const userCookie = req.cookies.get('preplens_user');
+    const userCookie = req.cookies.get('examforge_user');
     if (userCookie?.value) {
       try {
         const parsed = JSON.parse(userCookie.value);

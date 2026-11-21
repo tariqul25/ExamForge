@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     // Check auth cookie or body
     let userId: string | undefined = undefined;
-    const userCookie = req.cookies.get('preplens_user');
+    const userCookie = req.cookies.get('examforge_user');
     if (userCookie?.value) {
       try {
         const parsed = JSON.parse(userCookie.value);
@@ -48,6 +48,9 @@ export async function POST(req: NextRequest) {
       sourceType,
     });
 
+    // Resolve final subject (use detectedSubject if AI or topic-matching identified the specific discipline)
+    const finalSubject = result.detectedSubject || subject;
+
     // Time Limit Rule: Half of the total question count in minutes
     // e.g. 30 MCQs = 15 minutes (900s); 10 MCQs = 5 minutes (300s)
     const questions = result.mcqQuestions || [];
@@ -60,7 +63,7 @@ export async function POST(req: NextRequest) {
         try {
           const session = await ExamSession.create({
             userId,
-            subject,
+            subject: finalSubject,
             topic: result.detectedTopic,
             difficulty,
             negativeMarking: Number(negativeMarking),
@@ -79,6 +82,7 @@ export async function POST(req: NextRequest) {
             success: true,
             sessionId: session._id.toString(),
             type: 'mcq',
+            subject: finalSubject,
             topic: result.detectedTopic,
             summary: result.summaryOfContent,
             isDemoFallback: result.isDemoFallback,
@@ -94,7 +98,7 @@ export async function POST(req: NextRequest) {
       memoryStore.saveExam({
         _id: localId,
         userId,
-        subject,
+        subject: finalSubject,
         topic: result.detectedTopic,
         difficulty,
         negativeMarking: Number(negativeMarking),
@@ -120,6 +124,7 @@ export async function POST(req: NextRequest) {
         success: true,
         sessionId: localId,
         type: 'mcq',
+        subject: finalSubject,
         topic: result.detectedTopic,
         summary: result.summaryOfContent,
         isDemoFallback: result.isDemoFallback,
@@ -133,7 +138,7 @@ export async function POST(req: NextRequest) {
         try {
           const session = await WrittenSession.create({
             userId,
-            subject,
+            subject: finalSubject,
             topic: result.detectedTopic,
             questionMix,
             totalQuestions: writtenQuestions.length,
@@ -144,6 +149,7 @@ export async function POST(req: NextRequest) {
             success: true,
             sessionId: session._id.toString(),
             type: 'written',
+            subject: finalSubject,
             topic: result.detectedTopic,
             summary: result.summaryOfContent,
             isDemoFallback: result.isDemoFallback,
@@ -158,7 +164,7 @@ export async function POST(req: NextRequest) {
       memoryStore.saveWritten({
         _id: localId,
         userId,
-        subject,
+        subject: finalSubject,
         topic: result.detectedTopic,
         questionMix,
         totalQuestions: writtenQuestions.length,

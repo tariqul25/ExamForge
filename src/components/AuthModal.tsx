@@ -13,7 +13,7 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react';
-import PrepLensLogo from '@/components/PrepLensLogo';
+import ExamForgeLogo from '@/components/ExamForgeLogo';
 
 export default function AuthModal() {
   const {
@@ -144,7 +144,7 @@ export default function AuthModal() {
         {/* Modal Header */}
         <div className="text-center space-y-1 pt-1">
           <div className="flex justify-center mb-1">
-            <PrepLensLogo size={32} showText={false} />
+            <ExamForgeLogo size={32} showText={false} />
           </div>
           <h2 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">
             {activeTab === 'signin' ? 'Sign in to ExamForge' : 'Create an Account'}

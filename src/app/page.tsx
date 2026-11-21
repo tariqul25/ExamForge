@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { SAMPLE_STUDY_PRESETS, SampleStudyPreset } from '@/lib/sampleNotes';
 import { useAuth } from '@/context/AuthContext';
-import PrepLensLogo from '@/components/PrepLensLogo';
+import ExamForgeLogo from '@/components/ExamForgeLogo';
 
 interface UploadedImage {
   id: string;
@@ -95,6 +95,102 @@ const PRESET_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   'General Knowledge': Globe,
   'Computer Science / IT': Laptop,
 };
+
+function detectSubjectClient(t: string): string {
+  const lower = t.toLowerCase();
+  if (
+    lower.includes('voice') ||
+    lower.includes('passive') ||
+    lower.includes('active') ||
+    lower.includes('narration') ||
+    lower.includes('speech') ||
+    lower.includes('verb') ||
+    lower.includes('tense') ||
+    lower.includes('grammar') ||
+    lower.includes('grammer') ||
+    lower.includes('english') ||
+    lower.includes('vocabulary') ||
+    lower.includes('antonym') ||
+    lower.includes('synonym') ||
+    lower.includes('idiom') ||
+    lower.includes('preposition') ||
+    lower.includes('clause') ||
+    lower.includes('degree') ||
+    lower.includes('concord') ||
+    lower.includes('agreement') ||
+    lower.includes('transformation')
+  ) {
+    return 'English';
+  }
+  if (
+    lower.includes('শতকরা') ||
+    lower.includes('লাভ') ||
+    lower.includes('ক্ষতি') ||
+    lower.includes('বীজগণিত') ||
+    lower.includes('গণিত') ||
+    lower.includes('math') ||
+    lower.includes('algebra') ||
+    lower.includes('percentage') ||
+    lower.includes('মুনাফা') ||
+    lower.includes('সুদ') ||
+    lower.includes('অনুপাত') ||
+    lower.includes('জ্যামিতি') ||
+    lower.includes('পরিমিতি') ||
+    lower.includes('ত্রিভুজ') ||
+    lower.includes('বৃত্ত') ||
+    lower.includes('সমীকরণ') ||
+    lower.includes('সূচক') ||
+    lower.includes('লগারিদম') ||
+    lower.includes('লসাগু') ||
+    lower.includes('গসাগু')
+  ) {
+    return 'Mathematics';
+  }
+  if (
+    lower.includes('সমাস') ||
+    lower.includes('সন্ধি') ||
+    lower.includes('কারক') ||
+    lower.includes('বিভক্তি') ||
+    lower.includes('সাহিত্য') ||
+    lower.includes('মধ্যযুগ') ||
+    lower.includes('বাংলা') ||
+    lower.includes('বানান') ||
+    lower.includes('চর্যাপদ') ||
+    lower.includes('শব্দ') ||
+    lower.includes('প্রত্যয়') ||
+    lower.includes('বাগধারা') ||
+    lower.includes('উপসর্গ')
+  ) {
+    return 'Bangla';
+  }
+  if (
+    lower.includes('সংবিধান') ||
+    lower.includes('মুক্তিযুদ্ধ') ||
+    lower.includes('বাংলাদেশ') ||
+    lower.includes('আন্তর্জাতিক') ||
+    lower.includes('বঙ্গবন্ধু') ||
+    lower.includes('রাজধানী') ||
+    lower.includes('মুদ্রা') ||
+    lower.includes('জাতিসংঘ') ||
+    lower.includes('gk')
+  ) {
+    return 'General Knowledge';
+  }
+  if (
+    lower.includes('os') ||
+    lower.includes('operating system') ||
+    lower.includes('deadlock') ||
+    lower.includes('network') ||
+    lower.includes('database') ||
+    lower.includes('sql') ||
+    lower.includes('computer') ||
+    lower.includes('it') ||
+    lower.includes('memory management')
+  ) {
+    return 'Computer Science / IT';
+  }
+  return '';
+}
 
 export default function HomeUploadPage() {
   const router = useRouter();
@@ -346,12 +442,24 @@ export default function HomeUploadPage() {
     const step3Timer = setTimeout(() => setProcessingStep(3), 2000);
 
     try {
+      let finalSubject = selectedSubject;
+      if (sourceType === 'topic') {
+        const detected = detectSubjectClient(topic);
+        if (detected) {
+          finalSubject = detected;
+        } else if (!/[\u0980-\u09FF]/.test(topic)) {
+          finalSubject = 'English';
+        } else {
+          finalSubject = 'Bangla';
+        }
+      }
+
       const payload = {
         images: sourceType === 'image' ? images.map((img) => ({
           base64Data: img.base64Data,
           mimeType: img.mimeType,
         })) : [],
-        subject: selectedSubject,
+        subject: finalSubject,
         topic: topic.trim() || undefined,
         mode,
         mcqCount,
@@ -772,7 +880,11 @@ export default function HomeUploadPage() {
                   <span>Exam Session Setup</span>
                 </h2>
                 <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-bold">
-                  {selectedSubject}
+                  {sourceType === 'topic'
+                    ? topic.trim()
+                      ? `${detectSubjectClient(topic) || 'Auto'} (From Topic)`
+                      : 'Auto (From Topic)'
+                    : selectedSubject}
                 </span>
               </div>
 
@@ -782,107 +894,130 @@ export default function HomeUploadPage() {
                   <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
                     Subject Selector
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddSubjectModal(true)}
-                    className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Add Subject</span>
-                  </button>
+                  {sourceType === 'image' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSubjectModal(true)}
+                      className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add Subject</span>
+                    </button>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {DEFAULT_SUBJECTS.map((subj) => {
-                    const isSelected = selectedSubject === subj.id;
-                    const SubjIcon = subj.icon;
-                    return (
-                      <button
-                        key={subj.id}
-                        type="button"
-                        onClick={() => setSelectedSubject(subj.id)}
-                        className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
-                          isSelected
-                            ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 font-semibold text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
-                            : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                              isSelected
-                                ? 'bg-indigo-600 text-white'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
-                            }`}
-                          >
-                            <SubjIcon className="w-3.5 h-3.5" />
-                          </div>
-                          <div className="truncate">
-                            <p className="font-semibold leading-tight truncate">{subj.label}</p>
-                            <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{subj.bn}</p>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-
-                  {/* Permanent Custom Subjects */}
-                  {customSubjects.map((subj) => {
-                    const isSelected = selectedSubject === subj.id;
-                    return (
-                      <button
-                        key={subj.id}
-                        type="button"
-                        onClick={() => setSelectedSubject(subj.id)}
-                        className={`p-2.5 rounded-xl border text-left text-xs transition-all relative group ${
-                          isSelected
-                            ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 font-semibold text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
-                            : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                              isSelected
-                                ? 'bg-indigo-600 text-white'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
-                            }`}
-                          >
-                            <Layers className="w-3.5 h-3.5" />
-                          </div>
-                          <div className="truncate pr-4">
-                            <p className="font-semibold leading-tight truncate">{subj.label}</p>
-                            <p className="text-[10px] text-gray-500 dark:text-gray-400">Custom Subject</p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => removeCustomSubject(subj.id, e)}
-                          className="absolute top-1.5 right-1.5 text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Remove custom subject"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </button>
-                    );
-                  })}
-
-                  <button
-                    type="button"
-                    onClick={() => setShowAddSubjectModal(true)}
-                    className="p-2.5 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 hover:border-indigo-500 text-left text-xs transition-all text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400">
-                        <Plus className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <p className="font-semibold leading-tight">+ Add Subject</p>
-                        <p className="text-[10px] text-gray-400">Save permanently</p>
-                      </div>
+                {sourceType === 'topic' ? (
+                  /* Deactivated in Topic-Only Mode */
+                  <div className="p-3.5 rounded-2xl bg-gray-50/70 dark:bg-gray-800/40 border border-dashed border-gray-300 dark:border-gray-700 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4" />
                     </div>
-                  </button>
-                </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                        {topic.trim() ? (
+                          <>Auto-identified Subject: <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{detectSubjectClient(topic) || 'Auto-Detected'}</span></>
+                        ) : (
+                          'Subject is auto-detected from your topic'
+                        )}
+                      </p>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                        Subject selection is disabled in Topic-Only mode. ExamForge automatically categorizes your topic into the appropriate subject.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {DEFAULT_SUBJECTS.map((subj) => {
+                      const isSelected = selectedSubject === subj.id;
+                      const SubjIcon = subj.icon;
+                      return (
+                        <button
+                          key={subj.id}
+                          type="button"
+                          onClick={() => setSelectedSubject(subj.id)}
+                          className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                            isSelected
+                              ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 font-semibold text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
+                              : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                                isSelected
+                                  ? 'bg-indigo-600 text-white'
+                                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
+                              }`}
+                            >
+                              <SubjIcon className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="truncate">
+                              <p className="font-semibold leading-tight truncate">{subj.label}</p>
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{subj.bn}</p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+
+                    {/* Permanent Custom Subjects */}
+                    {customSubjects.map((subj) => {
+                      const isSelected = selectedSubject === subj.id;
+                      return (
+                        <button
+                          key={subj.id}
+                          type="button"
+                          onClick={() => setSelectedSubject(subj.id)}
+                          className={`p-2.5 rounded-xl border text-left text-xs transition-all relative group ${
+                            isSelected
+                              ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 font-semibold text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
+                              : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                                isSelected
+                                  ? 'bg-indigo-600 text-white'
+                                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
+                              }`}
+                            >
+                              <Layers className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="truncate pr-4">
+                              <p className="font-semibold leading-tight truncate">{subj.label}</p>
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400">Custom Subject</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => removeCustomSubject(subj.id, e)}
+                            className="absolute top-1.5 right-1.5 text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remove custom subject"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSubjectModal(true)}
+                      className="p-2.5 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 hover:border-indigo-500 text-left text-xs transition-all text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400">
+                          <Plus className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold leading-tight">+ Add Subject</p>
+                          <p className="text-[10px] text-gray-400">Save permanently</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Mode Toggle: MCQ vs Written */}
@@ -1156,7 +1291,7 @@ export default function HomeUploadPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl max-w-md w-full p-6 sm:p-8 text-center shadow-2xl space-y-6">
             <div className="relative mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30 animate-pulse">
-              <PrepLensLogo size={36} showText={false} />
+              <ExamForgeLogo size={36} showText={false} />
             </div>
 
             <div className="space-y-1">

@@ -7,7 +7,21 @@ import RevisionItem from '@/models/RevisionItem';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+function verifyAdmin(req: NextRequest): boolean {
+  try {
+    const userCookie = req.cookies.get('examforge_user');
+    if (!userCookie || !userCookie.value) return false;
+    const user = JSON.parse(userCookie.value);
+    return Boolean(user && user.role === 'admin');
+  } catch {
+    return false;
+  }
+}
+
+export async function GET(req: NextRequest) {
+  if (!verifyAdmin(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Admin privileges required.' }, { status: 403 });
+  }
   try {
     const db = await connectToDatabase();
     let exams = memoryStore.getAllExams();
@@ -28,7 +42,7 @@ export async function GET() {
     }
 
     const backupData = {
-      appName: 'PrepLens',
+      appName: 'ExamForge',
       version: '1.0.0',
       exportedAt: new Date().toISOString(),
       counts: {
@@ -50,6 +64,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!verifyAdmin(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Admin privileges required.' }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const { data } = body;
@@ -94,7 +111,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
+  if (!verifyAdmin(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Admin privileges required.' }, { status: 403 });
+  }
   try {
     memoryStore.resetData();
     const db = await connectToDatabase();

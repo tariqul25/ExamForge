@@ -16,7 +16,7 @@ export default function StatusBanner() {
 
   useEffect(() => {
     // Check if user dismissed banner for this session
-    const dismissed = sessionStorage.getItem('preplens-banner-dismissed');
+    const dismissed = sessionStorage.getItem('examforge-banner-dismissed');
     if (dismissed) return;
 
     fetch('/api/health')
@@ -36,7 +36,7 @@ export default function StatusBanner() {
   }, []);
 
   const dismiss = () => {
-    sessionStorage.setItem('preplens-banner-dismissed', 'true');
+    sessionStorage.setItem('examforge-banner-dismissed', 'true');
     setShow(false);
   };
 

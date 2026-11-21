@@ -6,7 +6,7 @@ interface LogoProps {
   showText?: boolean;
 }
 
-export default function PrepLensLogo({ className = '', size = 36, showText = true }: LogoProps) {
+export default function ExamForgeLogo({ className = '', size = 36, showText = true }: LogoProps) {
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
       {/* SVG Brand Icon */}

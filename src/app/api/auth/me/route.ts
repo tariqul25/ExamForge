@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
   try {
-    const userCookie = req.cookies.get('preplens_user');
+    const userCookie = req.cookies.get('examforge_user');
     if (!userCookie || !userCookie.value) {
       return NextResponse.json({ success: true, user: null });
     }
