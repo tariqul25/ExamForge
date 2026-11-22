@@ -54,3 +54,24 @@ body {
 .math-content .katex {
   font-size: 1.05em;
 }
+
+/* Hide Netlify floating drawer, badge, or injected feedback widget at bottom right */
+netlify-drawer,
+#netlify-drawer,
+[data-netlify-drawer],
+div[class*="netlify-drawer"],
+div[class*="feedback-drawer"],
+iframe[title*="Netlify" i],
+iframe[id*="netlify" i],
+.netlify-badge,
+a[href*="netlify.com"][class*="badge"],
+a[href*="netlify.com"][style*="fixed"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  position: absolute !important;
+  bottom: -9999px !important;
+}

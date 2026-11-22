@@ -7,7 +7,7 @@
 [![MongoDB](https://img.shields.io/badge/MongoDB_Atlas-Mongoose-green?style=for-the-badge&logo=mongodb)](https://www.mongodb.com/)
 [![Netlify](https://img.shields.io/badge/Deploy-Netlify-00C7B7?style=for-the-badge&logo=netlify)](https://examforge-live.netlify.app)
 
-> **Live Demo:** [https://examforge-live.netlify.app](https://examforge-live.netlify.app)
+> **Live Site:** [https://examforge-live.netlify.app](https://examforge-live.netlify.app)
 
 ---
 

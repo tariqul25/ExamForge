@@ -4,6 +4,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { AuthProvider } from '@/context/AuthContext';
 import AuthModal from '@/components/AuthModal';
+import RemoveNetlifyBadge from '@/components/RemoveNetlifyBadge';
 
 export const metadata: Metadata = {
   title: 'ExamForge | Smart Competitive Job Preparation & Smart Exam Platform',
@@ -43,6 +44,7 @@ export default function RootLayout({
           </main>
           <Footer />
           <AuthModal />
+          <RemoveNetlifyBadge />
         </AuthProvider>
       </body>
     </html>

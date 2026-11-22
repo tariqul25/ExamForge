@@ -71,13 +71,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
+      let fbSuccess = false;
+      let fbDisplayName = '';
+
       // If Firebase is configured, authenticate via Firebase
       if (typeof window !== 'undefined' && isFirebaseConfigured && auth) {
         try {
-          await signInWithEmailAndPassword(auth, email.trim(), password);
+          const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+          if (cred.user) {
+            fbSuccess = true;
+            fbDisplayName = cred.user.displayName || '';
+          }
         } catch (fbErr: any) {
           console.warn('Firebase signIn notice:', fbErr.code, fbErr.message);
-          // If user exists in server DB but not in Firebase yet, let server authenticate or handle
           if (fbErr.code === 'auth/wrong-password' || fbErr.code === 'auth/invalid-credential') {
             return { success: false, error: 'Incorrect email or password.' };
           }
@@ -87,18 +93,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setUser(data.user);
-        closeAuthModal();
-        return { success: true };
+      // Attempt server login
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success && data.user) {
+          setUser(data.user);
+          closeAuthModal();
+          return { success: true };
+        }
+      } catch (err) {
+        console.warn('Direct server login error:', err);
       }
-      return { success: false, error: data.error || 'Login failed' };
+
+      // Fallback 1: If Firebase verified this email & password
+      if (fbSuccess) {
+        const sessionRes = await fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email.trim(),
+            name: fbDisplayName || email.split('@')[0],
+          }),
+        });
+        const sessionData = await sessionRes.json();
+        if (sessionRes.ok && sessionData.success && sessionData.user) {
+          setUser(sessionData.user);
+          closeAuthModal();
+          return { success: true };
+        }
+      }
+
+      // Fallback 2: Check local client registry (ensures persistence when serverless DB is unreachable)
+      if (typeof window !== 'undefined') {
+        try {
+          const localUsers = JSON.parse(localStorage.getItem('examforge_registered_users') || '{}');
+          const matched = localUsers[email.toLowerCase().trim()];
+          if (matched && matched.password === password) {
+            const sessionRes = await fetch('/api/auth/google', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: matched.email,
+                name: matched.name,
+              }),
+            });
+            const sessionData = await sessionRes.json();
+            if (sessionRes.ok && sessionData.success && sessionData.user) {
+              setUser(sessionData.user);
+              closeAuthModal();
+              return { success: true };
+            }
+          }
+        } catch (e) {}
+      }
+
+      return { success: false, error: 'Invalid email or password. Please try again.' };
     } catch (e: any) {
       return { success: false, error: e.message || 'Login failed' };
     }
@@ -134,6 +188,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             };
           }
         }
+      }
+
+      // Save user to client registry for resilient recovery across serverless cold starts
+      if (typeof window !== 'undefined') {
+        try {
+          const localUsers = JSON.parse(localStorage.getItem('examforge_registered_users') || '{}');
+          localUsers[email.toLowerCase().trim()] = {
+            name: name.trim(),
+            email: email.toLowerCase().trim(),
+            password,
+            targetExam: targetExam || 'BCS & Bank Jobs',
+            role: email.toLowerCase().trim() === 'admin@examforge.com' ? 'admin' : 'user',
+          };
+          localStorage.setItem('examforge_registered_users', JSON.stringify(localUsers));
+        } catch (e) {}
       }
 
       // 2. Save user to server session & database (MongoDB/memoryStore)

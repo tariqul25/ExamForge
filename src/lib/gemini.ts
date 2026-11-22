@@ -53,23 +53,25 @@ export async function processStudyMaterialWithGemini(
   }
 
   if (isGeminiConfigured()) {
-    const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'];
+    const candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-    const imageParts = images.map((img) => {
-      let cleanBase64 = img.base64Data;
-      if (cleanBase64.includes(';base64,')) {
-        cleanBase64 = cleanBase64.split(';base64,')[1];
-      } else if (cleanBase64.includes(',')) {
-        cleanBase64 = cleanBase64.split(',')[1];
-      }
-      return {
-        inlineData: {
-          mimeType: img.mimeType?.startsWith('image/') ? img.mimeType : 'image/jpeg',
-          data: cleanBase64.trim(),
-        },
-      };
-    });
+    const imageParts = images
+      .filter((img) => img && img.base64Data && img.base64Data.trim() !== '')
+      .map((img) => {
+        let cleanBase64 = img.base64Data;
+        if (cleanBase64.includes(';base64,')) {
+          cleanBase64 = cleanBase64.split(';base64,')[1];
+        } else if (cleanBase64.includes(',')) {
+          cleanBase64 = cleanBase64.split(',')[1];
+        }
+        return {
+          inlineData: {
+            mimeType: img.mimeType?.startsWith('image/') ? img.mimeType : 'image/jpeg',
+            data: cleanBase64.trim(),
+          },
+        };
+      });
 
     const isCombined =
       !topic &&
@@ -147,7 +149,7 @@ Respond with ONLY valid JSON conforming to this schema (no markdown code fence):
     for (const modelName of candidateModels) {
       try {
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Gemini ${modelName} request timed out`)), 25000)
+          setTimeout(() => reject(new Error(`Gemini ${modelName} request timed out`)), 13000)
         );
 
         const geminiCall = ai.models.generateContent({

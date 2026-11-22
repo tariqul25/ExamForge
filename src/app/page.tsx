@@ -302,7 +302,7 @@ export default function HomeUploadPage() {
 
         const img = new Image();
         img.onload = () => {
-          const maxDim = 1280;
+          const maxDim = 1000;
           let width = img.width;
           let height = img.height;
 
@@ -322,7 +322,7 @@ export default function HomeUploadPage() {
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.82);
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.72);
             const sizeKb = Math.round((compressedBase64.length * 3) / 4 / 1024);
             resolve({
               base64Data: compressedBase64,
@@ -388,6 +388,7 @@ export default function HomeUploadPage() {
         mimeType: compressed.mimeType,
         sizeKb: compressed.sizeKb,
       };
+      setSourceType('image');
       setImages((prev) => [...prev, newImage]);
     }
   };
@@ -486,6 +487,12 @@ export default function HomeUploadPage() {
         const text = await res.text();
         data = JSON.parse(text);
       } catch (parseErr) {
+        if (res.status === 413) {
+          throw new Error('Image files too large for upload. Please use 1-3 clear photos or type your topic name.');
+        }
+        if (res.status === 504) {
+          throw new Error('Exam generation timed out on server. Please try again or test with 1-2 pages.');
+        }
         throw new Error('Server returned an unexpected response. Please try with a clearer photo or enter a topic.');
       }
 
@@ -1328,7 +1335,7 @@ export default function HomeUploadPage() {
 
       {/* Generation Loading State Modal */}
       {isGenerating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl max-w-md w-full p-6 sm:p-8 text-center shadow-2xl space-y-6">
             <div className="relative mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30 animate-pulse">
               <ExamForgeLogo size={36} showText={false} />
