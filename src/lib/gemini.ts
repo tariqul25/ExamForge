@@ -85,18 +85,50 @@ export async function processStudyMaterialWithGemini(
       (topic && isBanglaTopic(topic));
 
     const targetCount = Math.min(30, Math.max(1, params.mcqCount || 5));
+    const isStudyGuide = (params as any).isStudyGuide === true;
 
-    const systemPrompt = `You are an elite competitive job exam paper setter for BCS, Bank Recruitment, PSC, and Govt Jobs.
+    const systemPrompt = isStudyGuide
+      ? `You are a top-tier academic writer and job exam preparation expert for BCS, Bank, PSC, and Govt job exams in Bangladesh.
+
+TASK: COMPREHENSIVE TOPIC STUDY GUIDE
+Topic: "${topic || resolvedSubject}"
+Subject: ${resolvedSubject}
+
+Write a detailed, comprehensive study reference covering all important facts, rules, definitions, and concepts about this topic that job exam candidates need to know.
+
+Generate exactly 5 descriptive written questions with comprehensive model answers covering the full scope of this topic.
+
+LANGUAGE:
+- Bangla/Bengali topics → Bangla Unicode
+- English topics → English
+- Mixed → appropriate language
+
+For each question provide:
+- "id": number (1 to 5)
+- "question": a broad descriptive question on this topic
+- "marks": 10
+- "modelAnswer": comprehensive full-length model answer (all key facts, rules, examples, 3-6 paragraphs)
+- "keyPoints": array of 6-8 bullet points of must-remember exam points
+
+OUTPUT FORMAT (ONLY valid JSON, no markdown fence):
+{
+  "detectedTopic": "${topic || resolvedSubject}",
+  "detectedSubject": "${resolvedSubject}",
+  "languageDetected": "Bangla" | "English" | "Mixed",
+  "summaryOfContent": "1-2 sentence overview",
+  "writtenQuestions": [ ... ]
+}`
+      : `You are an elite competitive job exam paper setter for BCS, Bank Recruitment, PSC, and Govt Jobs.
 
 ${
   isTopicOnly
     ? `TASK: TOPIC-SPECIFIC COMPETITIVE EXAM GENERATION
 Generate an authentic competitive exam paper strictly matching the requested topic: "${topic || resolvedSubject}".
 Target Subject: ${resolvedSubject}.`
-    : `TASK: DEEP SCAN & VISION ANALYSIS OF STUDY MATERIAL
-Carefully transcribe, read, and analyze the handwritten notes, textbook pages, formulas, rules, and facts in the uploaded image(s).
-Formulate authentic exam questions directly testing the specific rules, equations, vocabulary, or concepts found in these uploaded pages.
-If topic is given ("${topic || 'Extract and name the exact topic from the uploaded material'}"), focus strictly on that topic within the images.`
+    : `TASK: SNAPSHOT STUDY MATERIAL SCAN & EXAM FORMULATION
+Analyze the uploaded snap/photos:
+1. AUTO-IDENTIFY SUBJECT & TOPIC: Inspect the text, formulas, rules, and questions in the snap. Determine the exact academic subject (e.g., Mathematics, English, Bangla, General Knowledge, Computer Science / IT, Physics, Chemistry, Biology, Accounting, etc.) and specific topic.
+2. 100% CONTENT-GROUNDED QUESTIONS: Formulate authentic competitive exam questions strictly based on the content shown in the snap/photo. Do NOT introduce unrelated subjects. Every single question must test the concepts, rules, terms, or calculations directly present in the uploaded images.`
 }
 
 ${
@@ -136,7 +168,7 @@ OUTPUT FORMAT:
 Respond with ONLY valid JSON conforming to this schema (no markdown code fence):
 {
   "detectedTopic": "concise topic name",
-  "detectedSubject": "${resolvedSubject}",
+  "detectedSubject": "${!isTopicOnly || resolvedSubject.startsWith('Auto') ? 'exact academic subject detected from snap (e.g. Mathematics, English, Bangla, General Knowledge, Physics, Computer Science / IT, etc.)' : resolvedSubject}",
   "languageDetected": "Bangla" | "English" | "Mixed",
   "summaryOfContent": "1-2 sentence overview",
   ${mode === 'mcq' ? '"mcqQuestions": [ ... ]' : '"writtenQuestions": [ ... ]'}
@@ -168,7 +200,11 @@ Respond with ONLY valid JSON conforming to this schema (no markdown code fence):
         if (parsed && (parsed.mcqQuestions?.length || parsed.writtenQuestions?.length)) {
           return {
             detectedTopic: topic && topic.trim() ? topic : parsed.detectedTopic || `${resolvedSubject} Core Study Note`,
-            detectedSubject: parsed.detectedSubject || resolvedSubject,
+            detectedSubject: parsed.detectedSubject && !parsed.detectedSubject.includes('exact academic')
+              ? parsed.detectedSubject
+              : resolvedSubject.startsWith('Auto')
+              ? 'General Knowledge'
+              : resolvedSubject,
             languageDetected: parsed.languageDetected || (isBangla ? 'Bangla' : 'English'),
             summaryOfContent: parsed.summaryOfContent || `Analyzed study material for ${resolvedSubject}`,
             mcqQuestions: parsed.mcqQuestions,

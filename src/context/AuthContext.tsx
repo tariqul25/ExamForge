@@ -198,7 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             name: name.trim(),
             email: email.toLowerCase().trim(),
             password,
-            targetExam: targetExam || 'BCS & Bank Jobs',
+            targetExam: targetExam || 'Job Preparation',
             role: email.toLowerCase().trim() === 'admin@examforge.com' ? 'admin' : 'user',
           };
           localStorage.setItem('examforge_registered_users', JSON.stringify(localUsers));

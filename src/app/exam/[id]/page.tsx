@@ -27,10 +27,13 @@ import {
 } from 'lucide-react';
 import MathRenderer from '@/components/MathRenderer';
 import { ExamSessionData, MCQQuestion } from '@/types';
+import { useAuth } from '@/context/AuthContext';
 
 export default function ExamSessionPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
+  const hadUser = useRef(Boolean(user));
   const examId = params.id as string;
 
   const [loading, setLoading] = useState(true);
@@ -59,6 +62,16 @@ export default function ExamSessionPage() {
 
   // Filter in review mode: 'all' | 'wrong' | 'correct' | 'skipped'
   const [reviewFilter, setReviewFilter] = useState<'all' | 'wrong' | 'correct' | 'skipped'>('all');
+
+  // Immediate redirect on logout during exam session
+  useEffect(() => {
+    if (user) {
+      hadUser.current = true;
+    } else if (hadUser.current) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      router.replace('/');
+    }
+  }, [user, router]);
 
   // Load Exam Data
   useEffect(() => {

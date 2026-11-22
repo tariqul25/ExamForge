@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
       writtenCount = 3,
       questionMix = 'Broad/Descriptive',
       sourceType = 'image',
+      isStudyGuide = false,
     } = body;
 
     // Check auth cookie or body
@@ -46,10 +47,16 @@ export async function POST(req: NextRequest) {
       writtenCount: Number(writtenCount),
       questionMix,
       sourceType,
-    });
+      isStudyGuide,
+    } as any);
 
     // Resolve final subject (use detectedSubject if AI or topic-matching identified the specific discipline)
-    const finalSubject = result.detectedSubject || subject;
+    const finalSubject =
+      result.detectedSubject && !result.detectedSubject.startsWith('Auto')
+        ? result.detectedSubject
+        : subject.startsWith('Auto')
+        ? 'General Knowledge'
+        : subject;
 
     // Time Limit Rule: Half of the total question count in minutes
     // e.g. 30 MCQs = 15 minutes (900s); 10 MCQs = 5 minutes (300s)

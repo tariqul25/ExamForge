@@ -20,7 +20,7 @@ const UserSchema = new Schema<IUser>(
     passwordHash: { type: String, required: false },
     role: { type: String, enum: ['admin', 'user'], default: 'user' },
     avatar: { type: String },
-    targetExam: { type: String, default: 'BCS & Bank Jobs' },
+    targetExam: { type: String, default: 'Job Preparation' },
     authProvider: { type: String, enum: ['password', 'google'], default: 'password' },
     googleId: { type: String },
   },

@@ -505,7 +505,7 @@ class MemoryStore {
       passwordHash: data.passwordHash || '',
       role: data.role || 'user',
       avatar: data.avatar || undefined,
-      targetExam: data.targetExam || 'BCS & Bank Jobs',
+      targetExam: data.targetExam || 'Job Preparation',
       authProvider: data.authProvider || 'password',
       googleId: data.googleId,
       createdAt: new Date().toISOString(),
@@ -517,6 +517,31 @@ class MemoryStore {
   saveUser(user: UserRecord): UserRecord {
     this.users.set(user.id, user);
     return user;
+  }
+
+  // Clear data completely without re-seeding
+  clearAllExamsAndSessions() {
+    this.exams.clear();
+    this.writtenSessions.clear();
+    this.revisionItems.clear();
+  }
+
+  clearUserData(userId: string) {
+    for (const [id, exam] of Array.from(this.exams.entries())) {
+      if (exam.userId === userId || !exam.userId) {
+        this.exams.delete(id);
+      }
+    }
+    for (const [id, session] of Array.from(this.writtenSessions.entries())) {
+      if (session.userId === userId || !session.userId) {
+        this.writtenSessions.delete(id);
+      }
+    }
+    for (const [id, item] of Array.from(this.revisionItems.entries())) {
+      if (item.userId === userId || !item.userId) {
+        this.revisionItems.delete(id);
+      }
+    }
   }
 
   // Reset to initial seeds

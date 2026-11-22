@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   BookmarkCheck,
@@ -24,9 +24,18 @@ import ExamForgeLogo from '@/components/ExamForgeLogo';
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout, openAuthModal } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(true);
+
+  const handleLogout = async () => {
+    await logout();
+    setMobileMenuOpen(false);
+    if (pathname.startsWith('/exam') || pathname.startsWith('/written')) {
+      router.replace('/');
+    }
+  };
   const [healthStatus, setHealthStatus] = useState<{
     mongoConnected: boolean;
     geminiConfigured: boolean;
@@ -76,7 +85,7 @@ export default function Navbar() {
   ];
 
   return (
-    <header className="sticky top-0 z-[60] backdrop-blur-md bg-white/95 dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 transition-colors shadow-2xs">
+    <header className="sticky top-0 z-[100] bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 transition-colors shadow-2xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
@@ -155,7 +164,7 @@ export default function Navbar() {
                 </Link>
 
                 <button
-                  onClick={() => logout()}
+                  onClick={handleLogout}
                   title="Sign Out"
                   className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                 >
@@ -260,10 +269,7 @@ export default function Navbar() {
                   </div>
                 </div>
                 <button
-                  onClick={() => {
-                    logout();
-                    setMobileMenuOpen(false);
-                  }}
+                  onClick={handleLogout}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 bg-red-50 dark:bg-red-950/40"
                 >
                   Log Out

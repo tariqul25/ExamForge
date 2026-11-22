@@ -199,9 +199,9 @@ export default function HomeUploadPage() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Creation Source: 'image' (Upload photo) OR 'topic' (No image needed)
-  const [sourceType, setSourceType] = useState<'image' | 'topic'>('image');
+  // Now unified — images presence auto-determines snap mode
 
-  // Uploaded images state (1 to 5 images)
+  // Uploaded images state (1 to 30 images)
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -213,7 +213,7 @@ export default function HomeUploadPage() {
 
   // Topic input
   const [topic, setTopic] = useState('');
-  const [mode, setMode] = useState<'mcq' | 'written'>('mcq');
+  const [mode, setMode] = useState<'mcq' | 'written' | 'study-guide'>('mcq');
 
   // MCQ Settings (Support up to 30 MCQs)
   const [mcqCount, setMcqCount] = useState(10);
@@ -388,7 +388,6 @@ export default function HomeUploadPage() {
         mimeType: compressed.mimeType,
         sizeKb: compressed.sizeKb,
       };
-      setSourceType('image');
       setImages((prev) => [...prev, newImage]);
     }
   };
@@ -401,7 +400,6 @@ export default function HomeUploadPage() {
     setErrorMsg(null);
     setSelectedSubject(preset.subject);
     setTopic(preset.topic);
-    setSourceType('image');
     setPresetNotification(`Sample note loaded: ${preset.subject} • ${preset.topic}`);
 
     const sampleImg: UploadedImage = {
@@ -426,13 +424,16 @@ export default function HomeUploadPage() {
   };
 
   const executeGenerate = async () => {
-    if (sourceType === 'image' && images.length === 0) {
-      setErrorMsg('Please upload at least 1 image of your textbook page or handwritten notes.');
+    const hasSnap = images.length > 0;
+    const hasTopic = topic.trim().length > 0;
+
+    if (!hasSnap && !hasTopic) {
+      setErrorMsg('Please upload a snap/photo OR enter a topic to generate your exam.');
       return;
     }
 
-    if (sourceType === 'topic' && !topic.trim()) {
-      setErrorMsg('Please enter your desired chapter or topic name to generate questions.');
+    if (mode === 'study-guide' && !hasTopic) {
+      setErrorMsg('Please enter a topic to generate a Study Guide.');
       return;
     }
 
@@ -443,9 +444,14 @@ export default function HomeUploadPage() {
     const step2Timer = setTimeout(() => setProcessingStep(2), 1000);
     const step3Timer = setTimeout(() => setProcessingStep(3), 2000);
 
+    // Determine effective source type and subject
+    const effectiveSourceType: 'image' | 'topic' = hasSnap ? 'image' : 'topic';
+
     try {
       let finalSubject = selectedSubject;
-      if (sourceType === 'topic') {
+      if (hasSnap) {
+        finalSubject = 'Auto-Detect from Snap';
+      } else {
         const detected = detectSubjectClient(topic);
         if (detected) {
           finalSubject = detected;
@@ -456,20 +462,24 @@ export default function HomeUploadPage() {
         }
       }
 
+      // Map 'study-guide' to 'written' with a special flag for the API
+      const apiMode = mode === 'study-guide' ? 'written' : mode;
+
       const payload = {
-        images: sourceType === 'image' ? images.map((img) => ({
+        images: hasSnap ? images.map((img) => ({
           base64Data: img.base64Data,
           mimeType: img.mimeType,
         })) : [],
         subject: finalSubject,
         topic: topic.trim() || undefined,
-        mode,
+        mode: apiMode,
         mcqCount,
         difficulty,
         negativeMarking,
-        writtenCount,
-        questionMix,
-        sourceType,
+        writtenCount: mode === 'study-guide' ? 5 : writtenCount,
+        questionMix: mode === 'study-guide' ? 'Broad/Descriptive' : questionMix,
+        sourceType: effectiveSourceType,
+        isStudyGuide: mode === 'study-guide',
       };
 
       const res = await fetch('/api/generate', {
@@ -504,15 +514,6 @@ export default function HomeUploadPage() {
       if (typeof window !== 'undefined' && data.exam && data.sessionId) {
         try {
           localStorage.setItem('examforge_exam_' + data.sessionId, JSON.stringify(data.exam));
-          const existingRecent = JSON.parse(localStorage.getItem('examforge_recent_sessions') || '[]');
-          existingRecent.unshift({
-            id: data.sessionId,
-            type: data.type,
-            subject: finalSubject,
-            topic: data.topic || topic.trim() || 'General Practice',
-            createdAt: new Date().toISOString(),
-          });
-          localStorage.setItem('examforge_recent_sessions', JSON.stringify(existingRecent.slice(0, 20)));
         } catch (storageErr) {}
       }
 
@@ -601,323 +602,219 @@ export default function HomeUploadPage() {
 
       {/* Main Creation Section */}
       <div id="create-section" className="scroll-mt-20 space-y-6">
-        {/* Source Mode Toggle (Tabs): Image Upload vs Topic Only */}
-        <div className="flex items-center justify-center">
-          <div className="inline-flex p-1.5 rounded-2xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xs">
-            <button
-              type="button"
-              onClick={() => setSourceType('image')}
-              className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                sourceType === 'image'
-                  ? 'bg-white dark:bg-gray-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <Camera className="w-4 h-4" />
-              <span>Photo / Note Upload</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSourceType('topic')}
-              className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                sourceType === 'topic'
-                  ? 'bg-white dark:bg-gray-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <Type className="w-4 h-4" />
-              <span>Topic Only (No Image Needed)</span>
-            </button>
-          </div>
-        </div>
 
-        {/* EQUALIZED HEIGHT GRID (Left & Right Cards) */}
+        {/* UNIFIED GRID: Left = Upload + Topic. Right = Settings */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-          {/* LEFT COLUMN: Upload Zone OR Topic Generator Input */}
-          <div className="bg-white dark:bg-gray-900 rounded-3xl p-5 sm:p-6 border border-gray-200 dark:border-gray-800 shadow-xs flex flex-col justify-between space-y-5">
-            {sourceType === 'image' ? (
-              <div className="space-y-4 flex-1 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                      <Camera className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                      <span>Upload Textbook Pages (1 - 5 Images)</span>
-                    </h2>
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-                      {images.length}/5 Selected
-                    </span>
+          {/* LEFT COLUMN: Unified — Snap Upload + Optional Topic */}
+          <div className="bg-white dark:bg-gray-900 rounded-3xl p-5 sm:p-6 border border-gray-200 dark:border-gray-800 shadow-xs flex flex-col space-y-5">
+
+            {/* --- SNAP / PHOTO UPLOAD --- */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Snap / Photo Upload</span>
+                </h2>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+                  {images.length > 0 ? `${images.length} uploaded` : 'Optional'}
+                </span>
+              </div>
+
+              {/* Preset Notification Banner */}
+              {presetNotification && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
+                  <span className="font-semibold flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{presetNotification}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPresetNotification(null)}
+                    className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 text-[11px] underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {images.length === 0 ? (
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFiles(e.dataTransfer.files); }}
+                  className={`border-2 border-dashed rounded-2xl py-7 px-4 text-center transition-all cursor-pointer ${
+                    isDragging
+                      ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-950/40'
+                      : 'border-gray-300 dark:border-gray-700 hover:border-indigo-400 bg-gray-50/40 dark:bg-gray-900/40'
+                  }`}
+                  onClick={() => {
+                    if (!user) { openAuthModal('signin', 'Sign in to upload photos.'); return; }
+                    fileInputRef.current?.click();
+                  }}
+                >
+                  <div className="mx-auto w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-950/80 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-2.5">
+                    <Upload className="w-5 h-5" />
                   </div>
-
-                  {/* Preset Notification Banner */}
-                  {presetNotification && (
-                    <div className="mb-3 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
-                      <span className="font-semibold flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>{presetNotification}</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setPresetNotification(null)}
-                        className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 text-[11px] underline"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Drag & Drop Zone */}
-                  {images.length === 0 ? (
-                    <div
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setIsDragging(true);
-                      }}
-                      onDragLeave={() => setIsDragging(false)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        setIsDragging(false);
-                        handleFiles(e.dataTransfer.files);
-                      }}
-                      className={`border-2 border-dashed rounded-2xl py-10 px-4 sm:py-12 sm:px-6 text-center transition-all cursor-pointer ${
-                        isDragging
-                          ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-950/40'
-                          : 'border-gray-300 dark:border-gray-700 hover:border-indigo-400 bg-gray-50/40 dark:bg-gray-900/40'
-                      }`}
-                      onClick={() => {
-                        if (!user) {
-                          openAuthModal('signin', 'Sign in to upload your photos and notes.');
-                          return;
-                        }
+                  <p className="text-xs font-bold text-gray-700 dark:text-gray-200">Drop photos here or click to browse</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">PNG, JPG, WebP • Multiple pages supported</p>
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!user) { openAuthModal('signin', 'Sign in to upload files.'); return; }
                         fileInputRef.current?.click();
                       }}
+                      className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 transition-colors flex items-center gap-1.5"
                     >
-                      <div className="mx-auto w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-950/80 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-3">
-                        <Upload className="w-6 h-6" />
-                      </div>
-                      <p className="text-sm font-bold text-gray-800 dark:text-gray-200">
-                        Drag & drop photos here, or click to browse
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Supports PNG, JPG, JPEG, WebP • Max 5 images per exam
-                      </p>
-
-                      <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!user) {
-                              openAuthModal('signin', 'Sign in to upload files.');
-                              return;
-                            }
-                            fileInputRef.current?.click();
-                          }}
-                          className="px-4 py-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-2xs flex items-center gap-1.5"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-indigo-500" />
-                          Choose Files
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!user) {
-                              openAuthModal('signin', 'Sign in to capture photos.');
-                              return;
-                            }
-                            cameraInputRef.current?.click();
-                          }}
-                          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold text-white transition-colors shadow-2xs flex items-center gap-1.5"
-                        >
-                          <Camera className="w-3.5 h-3.5" />
-                          Take Photo (Mobile)
-                        </button>
-                      </div>
+                      <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                      Choose Files
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!user) { openAuthModal('signin', 'Sign in to capture photos.'); return; }
+                        cameraInputRef.current?.click();
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold text-white transition-colors flex items-center gap-1.5"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      Take Photo
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 gap-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      <Upload className="w-4 h-4 text-indigo-500" />
+                      <span>{images.length} page(s) attached</span>
                     </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 gap-2">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                          <Upload className="w-4 h-4 text-indigo-500" />
-                          <span>{images.length} page(s) attached (up to 30)</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {images.length < 30 && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!user) {
-                                    openAuthModal('signin', 'Sign in to capture photos.');
-                                    return;
-                                  }
-                                  cameraInputRef.current?.click();
-                                }}
-                                className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs"
-                              >
-                                <Camera className="w-3.5 h-3.5" />
-                                <span>+ Snap Photo</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!user) {
-                                    openAuthModal('signin', 'Sign in to upload files.');
-                                    return;
-                                  }
-                                  fileInputRef.current?.click();
-                                }}
-                                className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 text-xs font-bold hover:bg-indigo-100 transition-colors flex items-center gap-1"
-                              >
-                                <Upload className="w-3.5 h-3.5" />
-                                <span>+ Add Files</span>
-                              </button>
-                            </>
-                          )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {images.length < 30 && (
+                        <>
                           <button
                             type="button"
                             onClick={() => {
-                              setImages([]);
-                              setPresetNotification(null);
+                              if (!user) { openAuthModal('signin', 'Sign in to capture photos.'); return; }
+                              cameraInputRef.current?.click();
                             }}
-                            className="px-2.5 py-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-medium transition-colors"
+                            className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-700 text-indigo-600 dark:text-indigo-400 text-xs font-bold hover:bg-gray-50 transition-colors flex items-center gap-1"
                           >
-                            Clear All
+                            <Camera className="w-3.5 h-3.5" />
+                            <span>+ Snap</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!user) { openAuthModal('signin', 'Sign in to upload files.'); return; }
+                              fileInputRef.current?.click();
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 text-xs font-bold hover:bg-indigo-100 transition-colors flex items-center gap-1"
+                          >
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>+ Add</span>
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { setImages([]); setPresetNotification(null); }}
+                        className="px-2.5 py-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-medium transition-colors"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {images.map((img, idx) => (
+                      <div key={img.id} className="group relative rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800 aspect-4/3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img.base64Data} alt={`Page ${idx + 1}`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <button onClick={() => removeImage(img.id)} className="p-1.5 rounded-full bg-red-600 text-white hover:bg-red-700 shadow-md" title="Remove">
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
+                        <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-bold">P{idx + 1}</div>
                       </div>
-
-                      {/* Uploaded Thumbnails Preview Grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {images.map((img, idx) => (
-                          <div
-                            key={img.id}
-                            className="group relative rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800 aspect-4/3"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={img.base64Data}
-                              alt={`Page ${idx + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2">
-                              <button
-                                onClick={() => removeImage(img.id)}
-                                className="p-1.5 rounded-full bg-red-600 text-white hover:bg-red-700 shadow-md transition-transform hover:scale-110"
-                                title="Remove image"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-black/70 text-white text-[10px] font-bold">
-                              P{idx + 1}
-                            </div>
-                            <div className="absolute bottom-1.5 left-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] truncate">
-                              {img.name}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Hidden inputs */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onClick={(e) => {
-                      (e.target as HTMLInputElement).value = '';
-                    }}
-                    onChange={(e) => handleFiles(e.target.files)}
-                  />
-                  <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onClick={(e) => {
-                      (e.target as HTMLInputElement).value = '';
-                    }}
-                    onChange={(e) => handleFiles(e.target.files)}
-                  />
-                </div>
-
-                {/* Left Column Study Guide Footer (Equalizes Height) */}
-                <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-xs space-y-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-indigo-900 dark:text-indigo-300">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                    <span>Vision Optical Scanner</span>
+                    ))}
                   </div>
-                  <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Automatically recognizes Bangla Unicode script, English, and LaTeX mathematical equations ($x^2 + y = 10$). Generates standard competitive exam questions with complete explanations.
-                  </p>
                 </div>
+              )}
+
+              {/* Hidden inputs */}
+              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
+                onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+              <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+            </div>
+
+            {/* Divider */}
+            <div className="relative flex items-center gap-3">
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                {images.length > 0 ? '+ Optional Topic Hint' : 'Or Type a Topic'}
+              </span>
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+            </div>
+
+            {/* --- TOPIC INPUT --- */}
+            <div className="space-y-2 flex-1 flex flex-col">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                  <Type className="w-3.5 h-3.5 text-indigo-500" />
+                  {images.length > 0 ? 'Topic Hint (Optional)' : 'Topic / Chapter *'}
+                </label>
+                {images.length > 0 && (
+                  <span className="text-[10px] text-gray-400 italic">AI will auto-detect from snap</span>
+                )}
               </div>
-            ) : (
-              /* Topic-Only Workspace (No Image Required) */
-              <div className="space-y-5 flex-1 flex flex-col justify-between">
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                      <Type className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                      <span>Instant Topic-Based Question Generator</span>
-                    </h2>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 font-sans mt-0.5">
-                      No textbook photo? Type any syllabus topic, chapter, or theorem in Bangla or English. ExamForge will craft competitive exam questions directly!
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                      Target Topic / Chapter Title <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={topic}
-                      onChange={(e) => setTopic(e.target.value)}
-                      placeholder="e.g. বাংলা সাহিত্য - মধ্যযুগ, অথবা শতকরা ও লাভ-ক্ষতি, অথবা বাংলাদেশের সংবিধান ও মূলনীতি, অথবা Right Form of Verbs, অথবা Computer Network Topologies"
-                      className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 text-gray-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500 leading-relaxed font-sans"
-                    />
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      <span className="text-[11px] text-gray-400">Quick suggestions:</span>
-                      {[
-                        'বাংলা সাহিত্য - মধ্যযুগ',
-                        'Right Form of Verbs',
-                        'শতকরা ও লাভ-ক্ষতি',
-                        'বাংলাদেশের সংবিধান',
-                        'Operating System Deadlocks',
-                      ].map((sugg) => (
-                        <button
-                          key={sugg}
-                          type="button"
-                          onClick={() => setTopic(sugg)}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors font-medium"
-                        >
-                          {sugg}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+              <textarea
+                rows={images.length > 0 ? 2 : 4}
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder={images.length > 0
+                  ? 'e.g. "শতকরা ও লাভ-ক্ষতি" — focus AI on a specific topic within the snap'
+                  : 'e.g. বাংলা সাহিত্য - মধ্যযুগ, অথবা Right Form of Verbs, অথবা বাংলাদেশের সংবিধান'}
+                className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 text-gray-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500 leading-relaxed resize-none"
+              />
+              {images.length === 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  <span className="text-[11px] text-gray-400">Quick:</span>
+                  {['বাংলা সাহিত্য - মধ্যযুগ', 'Right Form of Verbs', 'শতকরা ও লাভ-ক্ষতি', 'বাংলাদেশের সংবিধান', 'Operating System'].map((sugg) => (
+                    <button key={sugg} type="button" onClick={() => setTopic(sugg)}
+                      className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors font-medium"
+                    >
+                      {sugg}
+                    </button>
+                  ))}
                 </div>
+              )}
+            </div>
 
-                {/* Left Column Topic Guide Footer (Equalizes Height) */}
-                <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-xs space-y-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-indigo-900 dark:text-indigo-300">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                    <span>Topic-Matched Question Synthesis</span>
-                  </div>
-                  <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Generates authentic BCS, PSC, and Job-Exam standard multiple-choice questions matching your typed topic in either Bangla or English with in-depth solution notes.
+            {/* Snap active badge */}
+            {images.length > 0 && (
+              <div className="p-3 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                  <Sparkles className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-gray-800 dark:text-gray-200">
+                    Snap Mode Active — Subject & topic will be auto-detected from your photo
+                  </p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">
+                    Add a topic hint above to focus AI on a specific chapter within the snap
                   </p>
                 </div>
               </div>
             )}
           </div>
-
           {/* RIGHT COLUMN: Exam Session Setup */}
           <div className="bg-white dark:bg-gray-900 rounded-3xl p-5 sm:p-6 border border-gray-200 dark:border-gray-800 shadow-xs flex flex-col justify-between space-y-5">
             <div className="space-y-4">
@@ -927,152 +824,131 @@ export default function HomeUploadPage() {
                   <span>Exam Session Setup</span>
                 </h2>
                 <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-bold">
-                  {sourceType === 'topic'
-                    ? topic.trim()
-                      ? `${detectSubjectClient(topic) || 'Auto'} (From Topic)`
-                      : 'Auto (From Topic)'
-                    : selectedSubject}
+                  {images.length > 0
+                    ? 'Auto-Detect (Snap)'
+                    : topic.trim()
+                    ? `${detectSubjectClient(topic) || 'Auto'} (Topic)`
+                    : 'Select Mode'}
                 </span>
               </div>
 
-              {/* Subject Selector */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    Subject Selector
-                  </label>
-                  {sourceType === 'image' && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAddSubjectModal(true)}
-                      className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Subject</span>
-                    </button>
+              {/* Subject Selector — only shown when no snap */}
+              {images.length === 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      Subject Selector
+                    </label>
+                  </div>
+                  {topic.trim() ? (
+                    /* Deactivated when topic entered */
+                    <div className="p-3.5 rounded-2xl bg-gray-50/70 dark:bg-gray-800/40 border border-dashed border-gray-300 dark:border-gray-700 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                          <>Auto-identified: <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{detectSubjectClient(topic) || 'Auto-Detected'}</span></>
+                        </p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                          Subject auto-detected from your topic
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {DEFAULT_SUBJECTS.map((subj) => {
+                        const isSelected = selectedSubject === subj.id;
+                        const SubjIcon = subj.icon;
+                        return (
+                          <button
+                            key={subj.id}
+                            type="button"
+                            onClick={() => setSelectedSubject(subj.id)}
+                            className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                              isSelected
+                                ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 font-semibold text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
+                                : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
+                                <SubjIcon className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="truncate">
+                                <p className="font-semibold leading-tight truncate">{subj.label}</p>
+                                <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{subj.bn}</p>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+
+                      {/* Permanent Custom Subjects */}
+                      {customSubjects.map((subj) => {
+                        const isSelected = selectedSubject === subj.id;
+                        return (
+                          <button
+                            key={subj.id}
+                            type="button"
+                            onClick={() => setSelectedSubject(subj.id)}
+                            className={`p-2.5 rounded-xl border text-left text-xs transition-all relative group ${
+                              isSelected
+                                ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 font-semibold text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
+                                : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
+                                <Layers className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="truncate flex-1">
+                                <p className="font-semibold leading-tight truncate">{subj.label}</p>
+                                <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{subj.bn}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const updated = customSubjects.filter((s) => s.id !== subj.id);
+                                  setCustomSubjects(updated);
+                                  localStorage.setItem('examforge_custom_subjects', JSON.stringify(updated));
+                                  if (selectedSubject === subj.id) setSelectedSubject('All Subjects (Combined Model Test)');
+                                }}
+                                className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-red-100 dark:bg-red-950/60 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-200"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </button>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={() => setShowAddSubjectModal(true)}
+                        className="p-2.5 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 hover:border-indigo-500 text-left text-xs transition-all text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400">
+                            <Plus className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <p className="font-semibold leading-tight">+ Add Subject</p>
+                            <p className="text-[10px] text-gray-400">Save permanently</p>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
                   )}
                 </div>
-
-                {sourceType === 'topic' ? (
-                  /* Deactivated in Topic-Only Mode */
-                  <div className="p-3.5 rounded-2xl bg-gray-50/70 dark:bg-gray-800/40 border border-dashed border-gray-300 dark:border-gray-700 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-800 dark:text-gray-200">
-                        {topic.trim() ? (
-                          <>Auto-identified Subject: <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{detectSubjectClient(topic) || 'Auto-Detected'}</span></>
-                        ) : (
-                          'Subject is auto-detected from your topic'
-                        )}
-                      </p>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                        Subject selection is disabled in Topic-Only mode. ExamForge automatically categorizes your topic into the appropriate subject.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {DEFAULT_SUBJECTS.map((subj) => {
-                      const isSelected = selectedSubject === subj.id;
-                      const SubjIcon = subj.icon;
-                      return (
-                        <button
-                          key={subj.id}
-                          type="button"
-                          onClick={() => setSelectedSubject(subj.id)}
-                          className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
-                            isSelected
-                              ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 font-semibold text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
-                              : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                                isSelected
-                                  ? 'bg-indigo-600 text-white'
-                                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
-                              }`}
-                            >
-                              <SubjIcon className="w-3.5 h-3.5" />
-                            </div>
-                            <div className="truncate">
-                              <p className="font-semibold leading-tight truncate">{subj.label}</p>
-                              <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{subj.bn}</p>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-
-                    {/* Permanent Custom Subjects */}
-                    {customSubjects.map((subj) => {
-                      const isSelected = selectedSubject === subj.id;
-                      return (
-                        <button
-                          key={subj.id}
-                          type="button"
-                          onClick={() => setSelectedSubject(subj.id)}
-                          className={`p-2.5 rounded-xl border text-left text-xs transition-all relative group ${
-                            isSelected
-                              ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 font-semibold text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
-                              : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                                isSelected
-                                  ? 'bg-indigo-600 text-white'
-                                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
-                              }`}
-                            >
-                              <Layers className="w-3.5 h-3.5" />
-                            </div>
-                            <div className="truncate pr-4">
-                              <p className="font-semibold leading-tight truncate">{subj.label}</p>
-                              <p className="text-[10px] text-gray-500 dark:text-gray-400">Custom Subject</p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => removeCustomSubject(subj.id, e)}
-                            className="absolute top-1.5 right-1.5 text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Remove custom subject"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </button>
-                      );
-                    })}
-
-                    <button
-                      type="button"
-                      onClick={() => setShowAddSubjectModal(true)}
-                      className="p-2.5 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 hover:border-indigo-500 text-left text-xs transition-all text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400">
-                          <Plus className="w-3.5 h-3.5" />
-                        </div>
-                        <div>
-                          <p className="font-semibold leading-tight">+ Add Subject</p>
-                          <p className="text-[10px] text-gray-400">Save permanently</p>
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Mode Toggle: MCQ vs Written */}
+              )}
+              {/* Mode Toggle: MCQ vs Written vs Study Guide */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-                  Exam Mode
+                  Generation Mode
                 </label>
-                <div className="grid grid-cols-2 p-1 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                <div className={`grid p-1 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 ${images.length === 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
                   <button
                     type="button"
                     onClick={() => setMode('mcq')}
@@ -1083,7 +959,7 @@ export default function HomeUploadPage() {
                     }`}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>MCQ Exam (Up to 30)</span>
+                    <span>MCQ Exam</span>
                   </button>
                   <button
                     type="button"
@@ -1095,9 +971,30 @@ export default function HomeUploadPage() {
                     }`}
                   >
                     <FileText className="w-3.5 h-3.5" />
-                    <span>Written Questions</span>
+                    <span>Written</span>
                   </button>
+                  {/* Study Guide — only available when topic is provided without snap */}
+                  {images.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setMode('study-guide')}
+                      className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                        mode === 'study-guide'
+                          ? 'bg-white dark:bg-gray-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>Study Guide</span>
+                    </button>
+                  )}
                 </div>
+                {mode === 'study-guide' && images.length === 0 && (
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1.5 font-medium flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    Descriptive job-exam study notes with key facts, rules & examples
+                  </p>
+                )}
               </div>
 
               {/* MCQ Settings (Up to 30 MCQs!) */}
@@ -1183,7 +1080,7 @@ export default function HomeUploadPage() {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : mode === 'written' ? (
                 /* Written Settings */
                 <div className="space-y-3.5 pt-2 border-t border-gray-100 dark:border-gray-800">
                   <div>
@@ -1237,6 +1134,17 @@ export default function HomeUploadPage() {
                     </div>
                   </div>
                 </div>
+              ) : (
+                /* Study Guide Mode Info Card */
+                <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-xs space-y-1.5 mt-2">
+                  <div className="flex items-center gap-2 font-bold text-emerald-800 dark:text-emerald-300">
+                    <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Job Preparation Study Guide</span>
+                  </div>
+                  <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
+                    Generates 5 comprehensive descriptive study notes covering core definitions, rules/theorems, practical examples, and model questions with detailed explanations tailored for competitive job exams.
+                  </p>
+                </div>
               )}
 
               {/* Error Message */}
@@ -1253,19 +1161,25 @@ export default function HomeUploadPage() {
               type="button"
               disabled={isGenerating}
               onClick={triggerGenerate}
-              className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 shadow-lg bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 hover:from-indigo-500 hover:to-indigo-700 shadow-indigo-500/25 active:scale-[0.99] transition-all cursor-pointer"
+              className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 shadow-lg active:scale-[0.99] transition-all cursor-pointer ${
+                mode === 'study-guide'
+                  ? 'bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-500 hover:to-teal-600 shadow-emerald-500/25'
+                  : 'bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 hover:from-indigo-500 hover:to-indigo-700 shadow-indigo-500/25'
+              }`}
             >
               {!user ? (
                 <>
                   <Lock className="w-4 h-4" />
-                  <span>Sign In & Generate Exam</span>
+                  <span>Sign In & Generate</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4" />
+                  {mode === 'study-guide' ? <BookOpen className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
                   <span>
-                    {mode === 'mcq'
-                      ? `Generate ${mcqCount} MCQ Exam ${sourceType === 'image' ? `(${images.length} Pages)` : `(${selectedSubject})`}`
+                    {mode === 'study-guide'
+                      ? `Generate Study Guide${topic.trim() ? ` — ${topic.trim().slice(0, 30)}` : ''}`
+                      : mode === 'mcq'
+                      ? `Generate ${mcqCount} MCQ${images.length > 0 ? ` (${images.length} Snap${images.length > 1 ? 's' : ''})` : ''}`
                       : `Generate ${writtenCount} Written Questions`}
                   </span>
                 </>
@@ -1335,7 +1249,7 @@ export default function HomeUploadPage() {
 
       {/* Generation Loading State Modal */}
       {isGenerating && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-40 flex items-center justify-center pt-16 bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl max-w-md w-full p-6 sm:p-8 text-center shadow-2xl space-y-6">
             <div className="relative mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30 animate-pulse">
               <ExamForgeLogo size={36} showText={false} />
@@ -1346,7 +1260,11 @@ export default function HomeUploadPage() {
                 ExamForge Engine Active
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Crafting {mcqCount} competitive exam questions...
+                {mode === 'study-guide'
+                  ? 'Generating comprehensive job-standard study guide...'
+                  : mode === 'written'
+                  ? `Crafting ${writtenCount} written exam questions...`
+                  : `Crafting ${mcqCount} competitive exam questions...`}
               </p>
             </div>
 
@@ -1354,8 +1272,22 @@ export default function HomeUploadPage() {
               {[
                 { step: 1, title: 'Analyzing study content & academic scope' },
                 { step: 2, title: 'Parsing Bangla Unicode & LaTeX formulas' },
-                { step: 3, title: `Formulating ${mcqCount} competitive questions & detailed solutions` },
-                { step: 4, title: 'Finalizing interactive timer & palette' },
+                {
+                  step: 3,
+                  title:
+                    mode === 'study-guide'
+                      ? 'Formulating descriptive study notes & model answers'
+                      : mode === 'written'
+                      ? `Formulating ${writtenCount} written questions & marking criteria`
+                      : `Formulating ${mcqCount} competitive questions & detailed solutions`,
+                },
+                {
+                  step: 4,
+                  title:
+                    mode === 'study-guide'
+                      ? 'Finalizing study guide workspace'
+                      : 'Finalizing interactive timer & palette',
+                },
               ].map((s) => (
                 <div key={s.step} className="flex items-center gap-3">
                   <div

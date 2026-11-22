@@ -82,17 +82,33 @@ export default function SettingsPage() {
 
 
 
-  // Reset to initial sample data
+  // Reset all exam and study data
   const handleResetData = async () => {
-    if (!confirm('Are you sure you want to reset all exam, written, and revision records to initial sample data?')) {
+    if (!confirm('Are you sure you want to permanently reset all practice exam, written session, and revision records? This will clear your dashboard history.')) {
       return;
     }
     try {
       const res = await fetch('/api/backup', { method: 'DELETE' });
-      if (res.ok) {
-        setBackupMsg({ type: 'success', text: 'Study records reset to initial sample set.' });
-        fetchHealth();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to reset study records on server.');
       }
+
+      // Completely clear all client-side cached exams and dashboard state
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('examforge_completed_exams');
+        localStorage.removeItem('examforge_dashboard_cache');
+        localStorage.removeItem('examforge_revision_items');
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('examforge_exam_') || key.startsWith('examforge_written_'))) {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+
+      setBackupMsg({ type: 'success', text: 'All exam and study records have been completely cleared.' });
+      fetchHealth();
     } catch (e: any) {
       setBackupMsg({ type: 'error', text: 'Reset failed: ' + e.message });
     }
@@ -164,7 +180,7 @@ export default function SettingsPage() {
                 <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
                 <div className="flex items-center gap-1.5 mt-1 text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
                   <GraduationCap className="w-3.5 h-3.5" />
-                  <span>Target: {user.targetExam || 'BCS & Bank Jobs'}</span>
+                  <span>Target: {user.targetExam || 'Job Preparation'}</span>
                 </div>
               </div>
             </div>
@@ -226,39 +242,41 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Study Records Management */}
-      <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-200 dark:border-gray-800 shadow-xs space-y-4">
-        <h3 className="font-bold text-sm sm:text-base text-gray-900 dark:text-white flex items-center gap-2">
-          <Trash2 className="w-5 h-5 text-red-500" />
-          <span>Study Records Management</span>
-        </h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Reset all stored practice exams, written sessions, and revision items back to initial state.
-        </p>
+      {/* Study Records Management (Only for Authenticated Users - Hidden for Anonymous) */}
+      {user && (
+        <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-200 dark:border-gray-800 shadow-xs space-y-4">
+          <h3 className="font-bold text-sm sm:text-base text-gray-900 dark:text-white flex items-center gap-2">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            <span>Study Records Management</span>
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Reset all stored practice exams, written sessions, and revision items back to initial state.
+          </p>
 
-        {backupMsg && (
-          <div
-            className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
-              backupMsg.type === 'success'
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300'
-                : 'bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300'
-            }`}
-          >
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{backupMsg.text}</span>
+          {backupMsg && (
+            <div
+              className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                backupMsg.type === 'success'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{backupMsg.text}</span>
+            </div>
+          )}
+
+          <div className="flex items-center">
+            <button
+              onClick={handleResetData}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-semibold transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Reset All Study Records</span>
+            </button>
           </div>
-        )}
-
-        <div className="flex items-center">
-          <button
-            onClick={handleResetData}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-semibold transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Reset All Study Records</span>
-          </button>
         </div>
-      </div>
+      )}
 
       {/* Connection & Platform Settings (STRICTLY ADMIN ONLY) */}
       {user?.role === 'admin' && (

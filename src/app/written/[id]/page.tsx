@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   FileText,
@@ -21,14 +21,27 @@ import {
 } from 'lucide-react';
 import MathRenderer from '@/components/MathRenderer';
 import { WrittenSessionData, WrittenQuestion } from '@/types';
+import { useAuth } from '@/context/AuthContext';
 
 export default function WrittenSessionPage() {
   const params = useParams();
+  const router = useRouter();
+  const { user } = useAuth();
+  const hadUser = useRef(Boolean(user));
   const sessionId = params.id as string;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<WrittenSessionData | null>(null);
+
+  // Immediate redirect on logout during written exam session
+  useEffect(() => {
+    if (user) {
+      hadUser.current = true;
+    } else if (hadUser.current) {
+      router.replace('/');
+    }
+  }, [user, router]);
 
   // Expanded accordion states: questionId -> boolean
   const [expandedAnswers, setExpandedAnswers] = useState<Record<number, boolean>>({});

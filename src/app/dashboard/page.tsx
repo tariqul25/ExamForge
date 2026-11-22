@@ -74,7 +74,7 @@ export default function DashboardPage() {
           try {
             const localRaw = localStorage.getItem('examforge_completed_exams');
             if (localRaw) {
-              const localCompleted: any[] = JSON.parse(localRaw);
+              const localCompleted: any[] = JSON.parse(localRaw).filter((e: any) => e && e.status === 'completed');
               const serverHistoryIds = new Set((mergedMetrics.recentHistory || []).map((h: any) => h.id));
 
               localCompleted.forEach((locExam) => {

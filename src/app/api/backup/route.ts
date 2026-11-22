@@ -7,15 +7,19 @@ import RevisionItem from '@/models/RevisionItem';
 
 export const runtime = 'nodejs';
 
-function verifyAdmin(req: NextRequest): boolean {
+function getUser(req: NextRequest): { id: string; role?: string } | null {
   try {
     const userCookie = req.cookies.get('examforge_user');
-    if (!userCookie || !userCookie.value) return false;
-    const user = JSON.parse(userCookie.value);
-    return Boolean(user && user.role === 'admin');
+    if (!userCookie || !userCookie.value) return null;
+    return JSON.parse(userCookie.value);
   } catch {
-    return false;
+    return null;
   }
+}
+
+function verifyAdmin(req: NextRequest): boolean {
+  const user = getUser(req);
+  return Boolean(user && user.role === 'admin');
 }
 
 export async function GET(req: NextRequest) {
@@ -112,22 +116,34 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  if (!verifyAdmin(req)) {
-    return NextResponse.json({ success: false, error: 'Unauthorized: Admin privileges required.' }, { status: 403 });
+  const user = getUser(req);
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Please sign in.' }, { status: 401 });
   }
   try {
-    memoryStore.resetData();
+    const userId = user.id;
+    const isAdmin = user.role === 'admin';
+
+    // 1. Clear memory store completely without dummy seed data
+    if (isAdmin) {
+      memoryStore.clearAllExamsAndSessions();
+    } else if (userId) {
+      memoryStore.clearUserData(userId);
+    }
+
+    // 2. Clear MongoDB
     const db = await connectToDatabase();
     if (db) {
       try {
-        await ExamSession.deleteMany({});
-        await WrittenSession.deleteMany({});
-        await RevisionItem.deleteMany({});
+        const query = isAdmin ? {} : { userId };
+        await ExamSession.deleteMany(query);
+        await WrittenSession.deleteMany(query);
+        await RevisionItem.deleteMany(query);
       } catch (e) {
-        // ignore
+        console.warn('MongoDB delete failed:', e);
       }
     }
-    return NextResponse.json({ success: true, message: 'All study data reset to initial sample state' });
+    return NextResponse.json({ success: true, message: 'All study records reset successfully.' });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

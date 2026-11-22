@@ -197,10 +197,10 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Recent Exam & Study History
-    const mcqHistory = exams.map((e) => ({
+    // Recent Exam & Study History (STRICT: Only fully submitted/completed exams)
+    const mcqHistory = completedExams.map((e) => ({
       id: e._id,
-      date: new Date(e.createdAt).toLocaleDateString('en-US', {
+      date: new Date(e.completedAt || e.createdAt).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
@@ -208,12 +208,16 @@ export async function GET(req: NextRequest) {
       subject: e.subject,
       topic: e.topic,
       type: 'mcq' as const,
-      score: e.status === 'completed' ? `${e.score}/${e.totalQuestions}` : 'Pending',
-      accuracy: e.status === 'completed' ? `${e.accuracy}%` : '--',
-      status: e.status,
+      score: `${e.score}/${e.totalQuestions}`,
+      accuracy: `${e.accuracy}%`,
+      status: 'completed',
     }));
 
-    const writtenHistory = writtenSessions.map((w) => ({
+    const practicedWritten = writtenSessions.filter((w) =>
+      w.questions?.some((q) => q.status === 'Needs Review' || q.status === 'Mastered')
+    );
+
+    const writtenHistory = practicedWritten.map((w) => ({
       id: w._id,
       date: new Date(w.createdAt).toLocaleDateString('en-US', {
         month: 'short',

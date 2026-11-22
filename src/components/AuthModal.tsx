@@ -29,7 +29,7 @@ export default function AuthModal() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [targetExam, setTargetExam] = useState('BCS & Bank Jobs');
+  const [targetExam, setTargetExam] = useState('Job Preparation');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -305,9 +305,10 @@ export default function AuthModal() {
                   onChange={(e) => setTargetExam(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 >
+                  <option value="Job Preparation">Job Preparation (BCS, Bank, Govt & Private)</option>
                   <option value="BCS & Bank Jobs">BCS & Bank Jobs</option>
                   <option value="BCS Preliminary">BCS Preliminary</option>
-                  <option value="Combined 5 Banks / 8 Banks">Combined Banks (5/8 Banks)</option>
+                  <option value="Combined Banks">Combined Banks (5/8 Banks)</option>
                   <option value="Primary Assistant Teacher">Primary Assistant Teacher</option>
                   <option value="NTRCA Teacher Registration">NTRCA Teacher Registration</option>
                   <option value="University Admission Test">University Admission Test</option>
