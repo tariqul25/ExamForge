@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
             summary: result.summaryOfContent,
             isDemoFallback: result.isDemoFallback,
             notes: result.notes,
+            exam: session,
           });
         } catch (dbErr: any) {
           console.warn('MongoDB insert failed, saving to local store:', dbErr.message);
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
 
       // Memory Store fallback
       const localId = 'exam_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
-      memoryStore.saveExam({
+      const localExam = memoryStore.saveExam({
         _id: localId,
         userId,
         subject: finalSubject,
@@ -129,6 +130,7 @@ export async function POST(req: NextRequest) {
         summary: result.summaryOfContent,
         isDemoFallback: result.isDemoFallback,
         notes: result.notes,
+        exam: localExam,
       });
     } else {
       // Written Questions Mode

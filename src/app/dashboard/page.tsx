@@ -41,8 +41,21 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function DashboardPage() {
   const { user, openAuthModal } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('examforge_dashboard_cache');
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem('examforge_dashboard_cache');
+    }
+    return true;
+  });
 
   // Filters for History Table
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('All');
@@ -51,11 +64,53 @@ export default function DashboardPage() {
 
   const fetchDashboard = async () => {
     try {
-      setLoading(true);
       const res = await fetch('/api/dashboard');
       const data = await res.json();
       if (res.ok && data.success) {
-        setMetrics(data.metrics);
+        let mergedMetrics: DashboardMetrics = { ...data.metrics };
+
+        // Seamless local storage synchronization: merge locally taken exams
+        if (typeof window !== 'undefined') {
+          try {
+            const localRaw = localStorage.getItem('examforge_completed_exams');
+            if (localRaw) {
+              const localCompleted: any[] = JSON.parse(localRaw);
+              const serverHistoryIds = new Set((mergedMetrics.recentHistory || []).map((h: any) => h.id));
+
+              localCompleted.forEach((locExam) => {
+                if (!serverHistoryIds.has(locExam._id)) {
+                  mergedMetrics.recentHistory = [
+                    {
+                      id: locExam._id,
+                      type: 'mcq',
+                      subject: locExam.subject,
+                      topic: locExam.topic,
+                      date: new Date(locExam.completedAt || locExam.createdAt || Date.now()).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      }),
+                      scoreText: `${locExam.score ?? 0}/${locExam.totalQuestions || locExam.questions?.length || 0}`,
+                      status: locExam.status || 'completed',
+                    },
+                    ...(mergedMetrics.recentHistory || []),
+                  ];
+                  serverHistoryIds.add(locExam._id);
+                }
+              });
+
+              if (localCompleted.length > 0) {
+                mergedMetrics.totalExamsTaken = Math.max(
+                  mergedMetrics.totalExamsTaken,
+                  mergedMetrics.recentHistory.length
+                );
+              }
+            }
+            localStorage.setItem('examforge_dashboard_cache', JSON.stringify(mergedMetrics));
+          } catch (storageErr) {}
+        }
+
+        setMetrics(mergedMetrics);
       }
     } catch (e) {
       console.error('Error fetching dashboard:', e);

@@ -23,19 +23,50 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function RevisionBankPage() {
   const { user, openAuthModal } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<RevisionItemData[]>([]);
+  const [items, setItems] = useState<RevisionItemData[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('examforge_revision_cache');
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem('examforge_revision_cache');
+    }
+    return true;
+  });
   const [subjectFilter, setSubjectFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState<'All' | 'mcq' | 'written'>('All');
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'mastered' | 'all'>('pending');
   const [revealedIds, setRevealedIds] = useState<Record<string, boolean>>({});
 
   const fetchItems = async () => {
     try {
-      setLoading(true);
       const res = await fetch('/api/revision');
       const data = await res.json();
       if (res.ok && data.success) {
-        setItems(data.items || []);
+        let fetched: RevisionItemData[] = data.items || [];
+        // Merge with any locally saved revision items from completed exams
+        if (typeof window !== 'undefined') {
+          try {
+            const localRaw = localStorage.getItem('examforge_local_revision');
+            if (localRaw) {
+              const localList: RevisionItemData[] = JSON.parse(localRaw);
+              const existingIds = new Set(fetched.map((i) => i._id));
+              localList.forEach((item) => {
+                if (!existingIds.has(item._id)) {
+                  fetched.unshift(item);
+                  existingIds.add(item._id);
+                }
+              });
+            }
+            localStorage.setItem('examforge_revision_cache', JSON.stringify(fetched));
+          } catch (e) {}
+        }
+        setItems(fetched);
       }
     } catch (e) {
       console.error('Error fetching revision items:', e);
@@ -55,9 +86,13 @@ export default function RevisionBankPage() {
   const toggleMastered = async (id: string, currentState: boolean) => {
     try {
       const newState = !currentState;
-      setItems((prev) =>
-        prev.map((it) => (it._id === id ? { ...it, isMastered: newState } : it))
-      );
+      setItems((prev) => {
+        const updated = prev.map((it) => (it._id === id ? { ...it, isMastered: newState } : it));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('examforge_revision_cache', JSON.stringify(updated));
+        }
+        return updated;
+      });
 
       await fetch('/api/revision', {
         method: 'PUT',
@@ -71,7 +106,13 @@ export default function RevisionBankPage() {
 
   const deleteItem = async (id: string) => {
     try {
-      setItems((prev) => prev.filter((it) => it._id !== id));
+      setItems((prev) => {
+        const updated = prev.filter((it) => it._id !== id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('examforge_revision_cache', JSON.stringify(updated));
+        }
+        return updated;
+      });
       await fetch(`/api/revision?id=${id}`, {
         method: 'DELETE',
       });
@@ -80,14 +121,18 @@ export default function RevisionBankPage() {
     }
   };
 
+  const masteredCount = items.filter((it) => it.isMastered).length;
+  const pendingCount = items.length - masteredCount;
+
   const filteredItems = items.filter((it) => {
     const matchesSubject = subjectFilter === 'All' || it.subject === subjectFilter;
     const matchesType = typeFilter === 'All' || it.type === typeFilter;
-    return matchesSubject && matchesType;
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'pending' && !it.isMastered) ||
+      (statusFilter === 'mastered' && it.isMastered);
+    return matchesSubject && matchesType && matchesStatus;
   });
-
-  const masteredCount = items.filter((it) => it.isMastered).length;
-  const pendingCount = items.length - masteredCount;
 
   if (loading) {
     return (
@@ -150,6 +195,69 @@ export default function RevisionBankPage() {
           </button>
         </div>
       )}
+
+      {/* Status Segment Tabs: To Revise vs Mastered vs All */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 dark:border-gray-800 pb-2">
+        <button
+          onClick={() => setStatusFilter('pending')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            statusFilter === 'pending'
+              ? 'bg-amber-500 text-white shadow-xs'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+          }`}
+        >
+          <span>To Revise (Pending)</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] ${
+              statusFilter === 'pending'
+                ? 'bg-amber-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+            }`}
+          >
+            {pendingCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setStatusFilter('mastered')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            statusFilter === 'mastered'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+          }`}
+        >
+          <span>Mastered</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] ${
+              statusFilter === 'mastered'
+                ? 'bg-emerald-700 text-white'
+                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+            }`}
+          >
+            {masteredCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setStatusFilter('all')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            statusFilter === 'all'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+          }`}
+        >
+          <span>All Questions</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] ${
+              statusFilter === 'all'
+                ? 'bg-indigo-700 text-white'
+                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+            }`}
+          >
+            {items.length}
+          </span>
+        </button>
+      </div>
 
       {/* Filters Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-2xs">

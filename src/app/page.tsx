@@ -361,9 +361,10 @@ export default function HomeUploadPage() {
     }
 
     setErrorMsg(null);
-    const remainingSlots = 5 - images.length;
+    const MAX_PAGES = 30;
+    const remainingSlots = MAX_PAGES - images.length;
     if (remainingSlots <= 0) {
-      setErrorMsg('Maximum 5 images allowed per study session.');
+      setErrorMsg(`Maximum ${MAX_PAGES} images allowed per study session.`);
       return;
     }
 
@@ -490,6 +491,22 @@ export default function HomeUploadPage() {
 
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to generate questions. Please try again.');
+      }
+
+      // Save generated session to client localStorage cache so it never vanishes
+      if (typeof window !== 'undefined' && data.exam && data.sessionId) {
+        try {
+          localStorage.setItem('examforge_exam_' + data.sessionId, JSON.stringify(data.exam));
+          const existingRecent = JSON.parse(localStorage.getItem('examforge_recent_sessions') || '[]');
+          existingRecent.unshift({
+            id: data.sessionId,
+            type: data.type,
+            subject: finalSubject,
+            topic: data.topic || topic.trim() || 'General Practice',
+            createdAt: new Date().toISOString(),
+          });
+          localStorage.setItem('examforge_recent_sessions', JSON.stringify(existingRecent.slice(0, 20)));
+        } catch (storageErr) {}
       }
 
       if (data.type === 'mcq') {
@@ -712,26 +729,43 @@ export default function HomeUploadPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 gap-2">
                         <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
                           <Upload className="w-4 h-4 text-indigo-500" />
-                          <span>{images.length} of 5 page(s) attached</span>
+                          <span>{images.length} page(s) attached (up to 30)</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {images.length < 5 && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!user) {
-                                  openAuthModal('signin', 'Sign in to upload files.');
-                                  return;
-                                }
-                                fileInputRef.current?.click();
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 text-xs font-bold hover:bg-indigo-100 transition-colors"
-                            >
-                              + Add Page
-                            </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {images.length < 30 && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!user) {
+                                    openAuthModal('signin', 'Sign in to capture photos.');
+                                    return;
+                                  }
+                                  cameraInputRef.current?.click();
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs"
+                              >
+                                <Camera className="w-3.5 h-3.5" />
+                                <span>+ Snap Photo</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!user) {
+                                    openAuthModal('signin', 'Sign in to upload files.');
+                                    return;
+                                  }
+                                  fileInputRef.current?.click();
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 text-xs font-bold hover:bg-indigo-100 transition-colors flex items-center gap-1"
+                              >
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>+ Add Files</span>
+                              </button>
+                            </>
                           )}
                           <button
                             type="button"
@@ -739,7 +773,7 @@ export default function HomeUploadPage() {
                               setImages([]);
                               setPresetNotification(null);
                             }}
-                            className="px-2.5 py-1 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-medium transition-colors"
+                            className="px-2.5 py-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-medium transition-colors"
                           >
                             Clear All
                           </button>
@@ -787,6 +821,9 @@ export default function HomeUploadPage() {
                     accept="image/*"
                     multiple
                     className="hidden"
+                    onClick={(e) => {
+                      (e.target as HTMLInputElement).value = '';
+                    }}
                     onChange={(e) => handleFiles(e.target.files)}
                   />
                   <input
@@ -795,6 +832,9 @@ export default function HomeUploadPage() {
                     accept="image/*"
                     capture="environment"
                     className="hidden"
+                    onClick={(e) => {
+                      (e.target as HTMLInputElement).value = '';
+                    }}
                     onChange={(e) => handleFiles(e.target.files)}
                   />
                 </div>

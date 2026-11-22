@@ -102,3 +102,59 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
+
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { id, isMastered } = body;
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Item ID is required.' }, { status: 400 });
+    }
+
+    const db = await connectToDatabase();
+    if (db) {
+      try {
+        const updated = await RevisionItem.findByIdAndUpdate(
+          id,
+          { isMastered: Boolean(isMastered) },
+          { new: true }
+        );
+        if (updated) {
+          return NextResponse.json({ success: true, item: updated });
+        }
+      } catch (dbErr: any) {
+        console.warn('MongoDB revision update failed, falling back to memoryStore:', dbErr.message);
+      }
+    }
+
+    const localItem = memoryStore.toggleRevisionMastered(id, Boolean(isMastered));
+    return NextResponse.json({ success: true, item: localItem });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Item ID is required.' }, { status: 400 });
+    }
+
+    const db = await connectToDatabase();
+    if (db) {
+      try {
+        await RevisionItem.findByIdAndDelete(id);
+        return NextResponse.json({ success: true });
+      } catch (dbErr: any) {
+        console.warn('MongoDB revision delete failed, falling back to memoryStore:', dbErr.message);
+      }
+    }
+
+    memoryStore.deleteRevisionItem(id);
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}

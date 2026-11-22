@@ -22,13 +22,18 @@ export function isMongoConfigured(): boolean {
 }
 
 let lastFailureTime = 0;
-const RETRY_INTERVAL_MS = 30000;
+const RETRY_INTERVAL_MS = 60000;
 
 export async function connectToDatabase(): Promise<typeof mongoose | null> {
-  const uri = process.env.MONGODB_URI;
+  let uri = process.env.MONGODB_URI;
 
   if (!isMongoConfigured() || !uri) {
     return null;
+  }
+
+  // Ensure default database name if missing
+  if (uri.endsWith('/')) {
+    uri = uri + 'examforge?retryWrites=true&w=majority';
   }
 
   // If previous connection attempt failed, do not block UI with repeated timeouts
@@ -43,7 +48,8 @@ export async function connectToDatabase(): Promise<typeof mongoose | null> {
   if (!cached.promise) {
     const opts: mongoose.ConnectOptions = {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 3000,
+      serverSelectionTimeoutMS: 1200,
+      connectTimeoutMS: 1500,
     };
 
     cached.promise = mongoose.connect(uri, opts).then((m) => {

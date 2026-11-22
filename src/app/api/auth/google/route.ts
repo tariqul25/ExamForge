@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
 
     const cleanEmail = email.toLowerCase().trim();
     const displayName = name ? name.trim() : cleanEmail.split('@')[0];
+    const finalAvatar =
+      avatar ||
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=4f46e5&textColor=ffffff`;
     const configuredAdmin = (process.env.ADMIN_EMAIL || 'admin@examforge.com').toLowerCase().trim();
     const role = cleanEmail === configuredAdmin ? 'admin' : 'user';
 
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
         if (user) {
           // Update profile details
           user.authProvider = 'google';
-          if (avatar && !user.avatar) user.avatar = avatar;
+          if (finalAvatar) user.avatar = finalAvatar;
           if (googleUid) user.googleId = googleUid;
           await user.save();
         } else {
@@ -46,7 +49,7 @@ export async function POST(req: NextRequest) {
             name: displayName,
             email: cleanEmail,
             role,
-            avatar: avatar || undefined,
+            avatar: finalAvatar,
             targetExam: 'BCS & Bank Jobs',
             authProvider: 'google',
             googleId: googleUid || undefined,
@@ -58,7 +61,7 @@ export async function POST(req: NextRequest) {
           name: user.name,
           email: user.email,
           role: user.role,
-          avatar: user.avatar || undefined,
+          avatar: user.avatar || finalAvatar,
           targetExam: user.targetExam || 'BCS & Bank Jobs',
         };
 
@@ -77,9 +80,11 @@ export async function POST(req: NextRequest) {
         name: displayName,
         email: cleanEmail,
         role,
-        avatar: avatar || undefined,
+        avatar: finalAvatar,
         targetExam: 'BCS & Bank Jobs',
       });
+    } else if (finalAvatar) {
+      localUser.avatar = finalAvatar;
     }
 
     const userData = {
@@ -87,7 +92,7 @@ export async function POST(req: NextRequest) {
       name: localUser.name,
       email: localUser.email,
       role: localUser.role,
-      avatar: localUser.avatar || undefined,
+      avatar: localUser.avatar || finalAvatar,
       targetExam: localUser.targetExam || 'BCS & Bank Jobs',
     };
 

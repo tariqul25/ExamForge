@@ -7,12 +7,15 @@ export default function GoogleAuthPopupPage() {
   const [customName, setCustomName] = useState('');
   const [isCustom, setIsCustom] = useState(false);
 
-  const handleSelectAccount = (account: { email: string; name: string }) => {
+  const handleSelectAccount = (account: { email: string; name: string; avatar?: string }) => {
+    const avatar =
+      account.avatar ||
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(account.name)}&backgroundColor=4f46e5&textColor=ffffff`;
     if (window.opener) {
       window.opener.postMessage(
         {
           type: 'GOOGLE_AUTH_SUCCESS',
-          profile: account,
+          profile: { ...account, avatar },
         },
         window.location.origin
       );
