@@ -24,10 +24,10 @@ export async function POST(req: NextRequest) {
       isStudyGuide = false,
     } = body;
 
-    // Check auth cookie or body
-    let userId: string | undefined = undefined;
+    // Check auth body or cookie
+    let userId: string | undefined = body.userId;
     const userCookie = req.cookies.get('examforge_user');
-    if (userCookie?.value) {
+    if (!userId && userCookie?.value) {
       try {
         const parsed = JSON.parse(userCookie.value);
         userId = parsed.id;

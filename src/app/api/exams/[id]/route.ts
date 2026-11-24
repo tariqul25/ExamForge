@@ -99,7 +99,16 @@ export async function PUT(
         ? Math.round((correctCount / totalAttempted) * 100)
         : 0;
 
-    const updatedData = {
+    let userId: string | undefined = body.userId;
+    const userCookie = req.cookies.get('examforge_user');
+    if (!userId && userCookie?.value) {
+      try {
+        const parsed = JSON.parse(userCookie.value);
+        userId = parsed.id;
+      } catch (e) {}
+    }
+
+    const updatedData: any = {
       userAnswers: userAnswers || currentExam.userAnswers,
       timeSpentSeconds: timeSpentSeconds !== undefined ? timeSpentSeconds : currentExam.timeSpentSeconds,
       status: status || 'completed',
@@ -110,6 +119,10 @@ export async function PUT(
       skippedCount,
       completedAt: status === 'completed' ? new Date().toISOString() : undefined,
     };
+
+    if (userId) {
+      updatedData.userId = userId;
+    }
 
     if (db && currentExam.save) {
       try {

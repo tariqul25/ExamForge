@@ -38,65 +38,66 @@ export async function GET(req: NextRequest) {
     let exams: ExamSessionData[] = [];
     let writtenSessions: WrittenSessionData[] = [];
 
-    const db = await connectToDatabase();
-    if (db) {
-      try {
-        const examQuery: any = userId ? { userId } : { $or: [{ userId: null }, { userId: { $exists: false } }] };
-        const writtenQuery: any = userId ? { userId } : { $or: [{ userId: null }, { userId: { $exists: false } }] };
-
-        const dbExams = await ExamSession.find(examQuery).sort({ createdAt: -1 }).lean();
-        const dbWritten = await WrittenSession.find(writtenQuery).sort({ createdAt: -1 }).lean();
-        if (dbExams && dbExams.length > 0) {
-          exams = dbExams as unknown as ExamSessionData[];
-        }
-        if (dbWritten && dbWritten.length > 0) {
-          writtenSessions = dbWritten as unknown as WrittenSessionData[];
-        }
-      } catch (err: any) {
-        console.warn('MongoDB dashboard aggregation failed, using memory store:', err.message);
-      }
-    }
-
-    if (exams.length === 0) {
+    if (!userId) {
+      // ANONYMOUS GUEST DEMO MODE:
+      // Show ONLY pre-seeded dummy sample demo exams so guest users can preview the dashboard UI.
+      // Under NO circumstances do we query MongoDB or expose any real student's exams or data!
       const allMemoryExams = memoryStore.getAllExams();
-      if (userId) {
-        // STRICT USER ISOLATION: A logged-in user only sees their own exams!
-        exams = allMemoryExams.filter((e) => e.userId === userId);
-      } else {
-        // Anonymous guest preview gets demo exams
-        exams = allMemoryExams.filter((e) => !e.userId);
-      }
-    }
-
-    if (writtenSessions.length === 0) {
+      exams = allMemoryExams.filter((e) => e._id.startsWith('exam_sample_'));
       const allMemoryWritten = memoryStore.getAllWritten();
-      if (userId) {
-        writtenSessions = allMemoryWritten.filter((w) => w.userId === userId);
-      } else {
-        writtenSessions = allMemoryWritten.filter((w) => !w.userId);
+      writtenSessions = allMemoryWritten.filter(
+        (w) => w._id.startsWith('exam_sample_') || w._id.startsWith('written_sample_')
+      );
+    } else {
+      // LOGGED-IN STUDENT MODE:
+      // Strictly isolated - only load exams belonging to this specific userId!
+      const db = await connectToDatabase();
+      if (db) {
+        try {
+          const dbExams = await ExamSession.find({ userId }).sort({ createdAt: -1 }).lean();
+          const dbWritten = await WrittenSession.find({ userId }).sort({ createdAt: -1 }).lean();
+          if (dbExams && dbExams.length > 0) {
+            exams = dbExams as unknown as ExamSessionData[];
+          }
+          if (dbWritten && dbWritten.length > 0) {
+            writtenSessions = dbWritten as unknown as WrittenSessionData[];
+          }
+        } catch (err: any) {
+          console.warn('MongoDB dashboard aggregation failed, using memory store:', err.message);
+        }
       }
-    }
 
-    // If logged-in user has 0 exams taken yet, return a clean empty state
-    if (userId && exams.length === 0 && writtenSessions.length === 0) {
-      return NextResponse.json({
-        success: true,
-        metrics: {
-          totalExamsTaken: 0,
-          overallAccuracy: 0,
-          studyStreakDays: 0,
-          totalQuestionsSolved: 0,
-          subjectPerformance: CORE_SUBJECTS.map((subject) => ({
-            subject,
-            accuracy: 0,
-            totalExams: 0,
-            color: SUBJECT_COLORS[subject] || '#6366f1',
-          })),
-          scoreTrend: [],
-          weaknessAreas: [],
-          recentHistory: [],
-        },
-      });
+      if (exams.length === 0) {
+        const allMemoryExams = memoryStore.getAllExams();
+        exams = allMemoryExams.filter((e) => e.userId === userId);
+      }
+
+      if (writtenSessions.length === 0) {
+        const allMemoryWritten = memoryStore.getAllWritten();
+        writtenSessions = allMemoryWritten.filter((w) => w.userId === userId);
+      }
+
+      // If logged-in user has 0 exams taken yet, return a clean empty state
+      if (exams.length === 0 && writtenSessions.length === 0) {
+        return NextResponse.json({
+          success: true,
+          metrics: {
+            totalExamsTaken: 0,
+            overallAccuracy: 0,
+            studyStreakDays: 0,
+            totalQuestionsSolved: 0,
+            subjectPerformance: CORE_SUBJECTS.map((subject) => ({
+              subject,
+              accuracy: 0,
+              totalExams: 0,
+              color: SUBJECT_COLORS[subject] || '#6366f1',
+            })),
+            scoreTrend: [],
+            weaknessAreas: [],
+            recentHistory: [],
+          },
+        });
+      }
     }
 
     const completedExams = exams.filter((e) => e.status === 'completed');

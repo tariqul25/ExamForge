@@ -480,6 +480,7 @@ export default function HomeUploadPage() {
         questionMix: mode === 'study-guide' ? 'Broad/Descriptive' : questionMix,
         sourceType: effectiveSourceType,
         isStudyGuide: mode === 'study-guide',
+        userId: user?.id,
       };
 
       const res = await fetch('/api/generate', {

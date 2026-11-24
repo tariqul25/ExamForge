@@ -53,7 +53,12 @@ export async function processStudyMaterialWithGemini(
   }
 
   if (isGeminiConfigured()) {
-    const candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
+    const candidateModels = [
+      'gemini-3.5-flash-lite',
+      'gemini-3.6-flash',
+      'gemini-3.5-flash',
+      'gemini-3.8-flash',
+    ];
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     const imageParts = images
@@ -121,20 +126,36 @@ OUTPUT FORMAT (ONLY valid JSON, no markdown fence):
       : `You are an elite competitive job exam paper setter for BCS, Bank Recruitment, PSC, and Govt Jobs.
 
 ${
-  isTopicOnly
-    ? `TASK: TOPIC-SPECIFIC COMPETITIVE EXAM GENERATION
-Generate an authentic competitive exam paper strictly matching the requested topic: "${topic || resolvedSubject}".
-Target Subject: ${resolvedSubject}.`
-    : `TASK: SNAPSHOT STUDY MATERIAL SCAN & EXAM FORMULATION
-Analyze the uploaded snap/photos:
-1. AUTO-IDENTIFY SUBJECT & TOPIC: Inspect the text, formulas, rules, and questions in the snap. Determine the exact academic subject (e.g., Mathematics, English, Bangla, General Knowledge, Computer Science / IT, Physics, Chemistry, Biology, Accounting, etc.) and specific topic.
-2. 100% CONTENT-GROUNDED QUESTIONS: Formulate authentic competitive exam questions strictly based on the content shown in the snap/photo. Do NOT introduce unrelated subjects. Every single question must test the concepts, rules, terms, or calculations directly present in the uploaded images.`
-}
+  !isTopicOnly
+    ? `TASK: STRICT STUDY NOTE SNAPSHOT SCAN & 100% CONTENT-GROUNDED EXAM FORMULATION
 
-${
-  isCombined
-    ? `Combined Model Test: Distribute questions across: 1. Bangla, 2. English, 3. Mathematics, 4. General Knowledge, 5. Computer Science / IT.`
-    : `CRITICAL ACCURACY REQUIREMENT: Every single question MUST be strictly on the target topic: "${topic || resolvedSubject}".
+CRITICAL SNAP-ONLY ZERO-DRIFT DIRECTIVE:
+You are analyzing actual uploaded photos/snapshots of study notes, textbook pages, exercise problems, or lecture sheets.
+1. TRANSCRIPTION & EXTRACTION FIRST:
+   - Carefully read and transcribe all visible printed and handwritten text, math equations, formulas, definitions, sentences, and exercises from the provided image(s).
+2. 100% GROUNDED IN THE SNAP - ZERO TOPIC DRIFT:
+   - Every single question, multiple choice option, and explanation MUST be drawn DIRECTLY and EXCLUSIVELY from the specific text, rules, equations, and problems physically visible in the image(s).
+   - DO NOT just identify the general topic and then generate generic questions from your training memory!
+   - DO NOT invent problems, facts, or syllabus concepts that do not appear in the image.
+   - Even if you recognize what topic this note belongs to, you MUST NOT ask questions about concepts, rules, or facts that are not explicitly written or shown in the snap!
+   - If the snap contains math exercises or equations, test those exact equations, values, or direct numerical variations of them.
+   - If the snap contains grammar examples, test those exact sentences.
+   - If the snap contains factual notes, ask questions testing those exact facts.
+3. AUTO-IDENTIFY SUBJECT & TOPIC:
+   - Accurately determine the subject and topic solely from the content shown in the snap.
+4. LANGUAGE MATCH:
+   - If the snap content is in Bangla, generate questions, options, and explanations in Bangla Unicode.
+   - If the snap content is in English, generate in English.
+   - For mathematics, science, or technical subjects, preserve exact notations and wrap formulas in KaTeX ($...$).`
+    : isCombined
+    ? `TASK: COMBINED MODEL TEST EXAM GENERATION
+Distribute questions across: 1. Bangla, 2. English, 3. Mathematics, 4. General Knowledge, 5. Computer Science / IT.`
+    : `TASK: TOPIC-SPECIFIC COMPETITIVE EXAM GENERATION
+Generate an authentic competitive exam paper strictly matching the requested topic: "${topic || resolvedSubject}".
+Target Subject: ${resolvedSubject}.
+
+CRITICAL ACCURACY REQUIREMENT:
+Every single question MUST be strictly on the target topic: "${topic || resolvedSubject}".
 DO NOT mix unrelated subjects or topics. For example:
 - If topic is "changing voice" or "voice change", EVERY question must be an English Active/Passive Voice transformation question.
 - If topic is "শতকরা ও লাভ-ক্ষতি", EVERY question must be a Percentage / Profit & Loss math problem.
@@ -181,7 +202,7 @@ Respond with ONLY valid JSON conforming to this schema (no markdown code fence):
     for (const modelName of candidateModels) {
       try {
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Gemini ${modelName} request timed out`)), 13000)
+          setTimeout(() => reject(new Error(`Gemini ${modelName} request timed out`)), 25000)
         );
 
         const geminiCall = ai.models.generateContent({
@@ -216,6 +237,15 @@ Respond with ONLY valid JSON conforming to this schema (no markdown code fence):
         console.warn(`[ExamForge] Gemini ${modelName} failed, trying next:`, err.message);
       }
     }
+  }
+
+  // STRICT ZERO-DRIFT RULE FOR SNAPS:
+  // When a student uploads a snap/photo, questions MUST only come from that snap.
+  // We NEVER fall back to generic topic questions!
+  if (!isTopicOnly) {
+    throw new Error(
+      'আপলোড করা স্ন্যাপ/ছবি থেকে স্পষ্ট কোনো পাঠযোগ্য নোট বা তথ্য পাওয়া যায়নি। অনুগ্রহ করে বইয়ের পাতা বা নোটের পরিষ্কার ছবি আপলোড করুন।'
+    );
   }
 
   return generateIntelligentFallback({ ...params, subject: resolvedSubject });

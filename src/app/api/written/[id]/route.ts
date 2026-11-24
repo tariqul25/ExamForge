@@ -44,6 +44,15 @@ export async function PUT(
     const body = await req.json();
     const { questionId, status } = body;
 
+    let userId: string | undefined = body.userId;
+    const userCookie = req.cookies.get('examforge_user');
+    if (!userId && userCookie?.value) {
+      try {
+        const parsed = JSON.parse(userCookie.value);
+        userId = parsed.id;
+      } catch (e) {}
+    }
+
     const db = await connectToDatabase();
     let session: any = null;
 
@@ -51,6 +60,7 @@ export async function PUT(
       try {
         session = await WrittenSession.findById(id);
         if (session) {
+          if (userId && !session.userId) session.userId = userId;
           const q = session.questions.find((item: any) => item.id === questionId);
           if (q) {
             q.status = status;
@@ -65,6 +75,7 @@ export async function PUT(
 
     const localSession = memoryStore.getWrittenById(id);
     if (localSession) {
+      if (userId && !localSession.userId) localSession.userId = userId;
       const q = localSession.questions.find((item: any) => item.id === questionId);
       if (q) {
         q.status = status;

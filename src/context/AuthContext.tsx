@@ -272,10 +272,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      setUser(null);
-    } catch (e) {
-      setUser(null);
+    } catch (e) {}
+
+    // Complete privacy wipe of student session data from browser memory on logout
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('examforge_completed_exams');
+        localStorage.removeItem('examforge_dashboard_cache');
+        localStorage.removeItem('examforge_revision_cache');
+        localStorage.removeItem('examforge_local_revision');
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('examforge_exam_') || key.startsWith('examforge_written_'))) {
+            localStorage.removeItem(key);
+          }
+        }
+      } catch (e) {}
     }
+
+    setUser(null);
   };
 
   // Guard helper: if not authenticated, trigger auth modal with custom reason

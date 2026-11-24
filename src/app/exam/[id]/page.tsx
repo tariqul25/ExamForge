@@ -235,6 +235,7 @@ export default function ExamSessionPage() {
             userAnswers: formattedAnswers,
             timeSpentSeconds: timeSpent,
             status: 'completed',
+            userId: user?.id,
           }),
         });
 
@@ -244,6 +245,10 @@ export default function ExamSessionPage() {
         }
       } catch (serverErr) {
         console.warn('Server submission issue, using local exam calculation:', serverErr);
+      }
+
+      if (user?.id) {
+        finalizedExam.userId = user.id;
       }
 
       // 2. Save completed exam to localStorage so it is never lost on sign-out or refresh

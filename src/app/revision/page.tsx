@@ -49,15 +49,15 @@ export default function RevisionBankPage() {
       const data = await res.json();
       if (res.ok && data.success) {
         let fetched: RevisionItemData[] = data.items || [];
-        // Merge with any locally saved revision items from completed exams
-        if (typeof window !== 'undefined') {
+        // Merge with locally saved revision items ONLY for logged-in user
+        if (typeof window !== 'undefined' && user) {
           try {
             const localRaw = localStorage.getItem('examforge_local_revision');
             if (localRaw) {
               const localList: RevisionItemData[] = JSON.parse(localRaw);
               const existingIds = new Set(fetched.map((i) => i._id));
               localList.forEach((item) => {
-                if (!existingIds.has(item._id)) {
+                if (!existingIds.has(item._id) && (!item.userId || item.userId === user.id)) {
                   fetched.unshift(item);
                   existingIds.add(item._id);
                 }
@@ -65,6 +65,8 @@ export default function RevisionBankPage() {
             }
             localStorage.setItem('examforge_revision_cache', JSON.stringify(fetched));
           } catch (e) {}
+        } else if (!user && typeof window !== 'undefined') {
+          localStorage.removeItem('examforge_revision_cache');
         }
         setItems(fetched);
       }

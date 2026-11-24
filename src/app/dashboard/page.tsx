@@ -69,12 +69,14 @@ export default function DashboardPage() {
       if (res.ok && data.success) {
         let mergedMetrics: DashboardMetrics = { ...data.metrics };
 
-        // Seamless local storage synchronization: merge locally taken exams
-        if (typeof window !== 'undefined') {
+        // Seamless local storage synchronization: only for logged in user's own exams
+        if (typeof window !== 'undefined' && user) {
           try {
             const localRaw = localStorage.getItem('examforge_completed_exams');
             if (localRaw) {
-              const localCompleted: any[] = JSON.parse(localRaw).filter((e: any) => e && e.status === 'completed');
+              const localCompleted: any[] = JSON.parse(localRaw).filter(
+                (e: any) => e && e.status === 'completed' && (!e.userId || e.userId === user.id)
+              );
               const serverHistoryIds = new Set((mergedMetrics.recentHistory || []).map((h: any) => h.id));
 
               localCompleted.forEach((locExam) => {
@@ -108,6 +110,9 @@ export default function DashboardPage() {
             }
             localStorage.setItem('examforge_dashboard_cache', JSON.stringify(mergedMetrics));
           } catch (storageErr) {}
+        } else if (!user && typeof window !== 'undefined') {
+          // If anonymous guest, do not hold previous user's metrics in cache
+          localStorage.removeItem('examforge_dashboard_cache');
         }
 
         setMetrics(mergedMetrics);

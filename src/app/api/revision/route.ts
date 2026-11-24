@@ -20,10 +20,28 @@ export async function GET(req: NextRequest) {
     const subject = searchParams.get('subject');
     const type = searchParams.get('type');
 
+    // ANONYMOUS GUEST DEMO MODE:
+    // Show ONLY pre-seeded dummy sample revision items so guest users can test the Revision Bank UI.
+    // Under NO circumstances do we expose real students' saved mistakes or items!
+    if (!userId) {
+      const sampleItems = memoryStore.getAllRevision().filter((i) => i._id.startsWith('rev_sample_'));
+      let items = sampleItems;
+      if (subject && subject !== 'All') {
+        items = items.filter((i) => i.subject === subject);
+      }
+      if (type && type !== 'All') {
+        items = items.filter((i) => i.type === type);
+      }
+      return NextResponse.json({ success: true, items, isDemoPreview: true });
+    }
+
+    // LOGGED-IN STUDENT MODE:
+    // Strictly isolated to this student's userId only!
+
     const db = await connectToDatabase();
     if (db) {
       try {
-        const query: any = userId ? { userId } : { $or: [{ userId: null }, { userId: { $exists: false } }] };
+        const query: any = { userId };
         if (subject && subject !== 'All') query.subject = subject;
         if (type && type !== 'All') query.type = type;
 
@@ -35,9 +53,7 @@ export async function GET(req: NextRequest) {
     }
 
     const allItems = memoryStore.getAllRevision();
-    let items = userId
-      ? allItems.filter((i) => i.userId === userId)
-      : allItems.filter((i) => !i.userId);
+    let items = allItems.filter((i) => i.userId === userId);
 
     if (subject && subject !== 'All') {
       items = items.filter((i) => i.subject === subject);

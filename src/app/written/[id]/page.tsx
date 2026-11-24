@@ -101,7 +101,7 @@ export default function WrittenSessionPage() {
       await fetch(`/api/written/${sessionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questionId: qId, status: newStatus }),
+        body: JSON.stringify({ questionId: qId, status: newStatus, userId: user?.id }),
       });
     } catch (e) {
       // rollback or handle silently
